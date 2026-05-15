@@ -1,5 +1,6 @@
 using ClinicAppointmentBookingSystem.Models.DTOs.Doctors;
 using ClinicAppointmentBookingSystem.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicAppointmentBookingSystem.Controllers;
@@ -59,8 +60,10 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="404">Speciality or clinic not found.</response>
     [HttpPost]
+    [Authorize]
     [ProducesResponseType(typeof(DoctorResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Create(CreateDoctorRequest request)
     {
@@ -79,8 +82,10 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="404">Doctor or speciality not found.</response>
     [HttpPut("{id}")]
+    [Authorize]
     [ProducesResponseType(typeof(DoctorResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(int id, UpdateDoctorRequest request)
     {
@@ -97,7 +102,9 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="404">Doctor not found.</response>
     /// <response code="409">Doctor has appointments and cannot be deleted.</response>
     [HttpDelete("{id}")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(int id)

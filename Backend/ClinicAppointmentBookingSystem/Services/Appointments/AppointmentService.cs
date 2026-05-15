@@ -10,6 +10,7 @@ public class AppointmentService(ClinicBookingDbContext db) : IAppointmentService
 {
     public async Task<AppointmentResponse> BookAsGuestAsync(GuestBookAppointmentRequest request)
     {
+        await ValidateBookingReferencesAsync(request.DoctorId, request.ClinicId, request.CategoryId);
         await ValidateAppointmentSlotAsync(request.ClinicId, request.DoctorId, request.StartTime, request.EndTime);
 
         var guest = await db.Patients.FirstOrDefaultAsync(p =>
@@ -45,6 +46,7 @@ public class AppointmentService(ClinicBookingDbContext db) : IAppointmentService
 
     public async Task<AppointmentResponse> BookAsPatientAsync(int patientId, BookAppointmentRequest request)
     {
+        await ValidateBookingReferencesAsync(request.DoctorId, request.ClinicId, request.CategoryId);
         await ValidateAppointmentSlotAsync(request.ClinicId, request.DoctorId, request.StartTime, request.EndTime, patientId);
 
         var appointment = new Appointment
@@ -104,6 +106,16 @@ public class AppointmentService(ClinicBookingDbContext db) : IAppointmentService
 
         db.Appointments.Remove(appointment);
         await db.SaveChangesAsync();
+    }
+
+    private async Task ValidateBookingReferencesAsync(int doctorId, int clinicId, int categoryId)
+    {
+        if (!await db.Doctors.AnyAsync(d => d.Id == doctorId))
+            throw new KeyNotFoundException($"Doctor {doctorId} not found.");
+        if (!await db.Clinics.AnyAsync(c => c.Id == clinicId))
+            throw new KeyNotFoundException($"Clinic {clinicId} not found.");
+        if (!await db.AppointmentCategories.AnyAsync(c => c.Id == categoryId))
+            throw new KeyNotFoundException($"Category {categoryId} not found.");
     }
 
     private async Task ValidateAppointmentSlotAsync(int clinicId, int doctorId, DateTime start, DateTime end, int? patientId = null, int? excludeAppointmentId = null)

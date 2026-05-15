@@ -19,10 +19,12 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     /// <param name="request">Guest patient details and appointment details.</param>
     /// <response code="201">Appointment booked.</response>
     /// <response code="400">Validation failed or end time is before start time.</response>
+    /// <response code="404">Doctor, clinic, or category not found.</response>
     /// <response code="409">A conflicting appointment already exists at this time slot.</response>
     [HttpPost("book/guest")]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> BookAsGuest(GuestBookAppointmentRequest request)
     {
@@ -31,6 +33,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
             var result = await appointmentService.BookAsGuestAsync(request);
             return CreatedAtAction(nameof(BookAsGuest), result);
         }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
@@ -40,12 +43,14 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     /// <response code="201">Appointment booked.</response>
     /// <response code="400">Validation failed or end time is before start time.</response>
     /// <response code="401">Not authenticated.</response>
+    /// <response code="404">Doctor, clinic, or category not found.</response>
     /// <response code="409">A conflicting appointment already exists at this time slot.</response>
     [HttpPost("book")]
     [Authorize]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Book(BookAppointmentRequest request)
     {
@@ -55,6 +60,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
             var result = await appointmentService.BookAsPatientAsync(patientId, request);
             return CreatedAtAction(nameof(Book), result);
         }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }

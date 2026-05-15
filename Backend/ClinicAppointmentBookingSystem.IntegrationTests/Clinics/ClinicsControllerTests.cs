@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using ClinicAppointmentBookingSystem.Models.DTOs.Appointments;
+using ClinicAppointmentBookingSystem.Models.DTOs.Auth;
 using ClinicAppointmentBookingSystem.Models.DTOs.Clinics;
 using FluentAssertions;
 
@@ -11,10 +13,19 @@ public class ClinicsControllerTests(CustomWebApplicationFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         factory.ResetDatabase();
-        return Task.CompletedTask;
+        var response = await _client.PostAsJsonAsync("/auth/register", new RegisterRequest
+        {
+            FirstName = "Test", LastName = "User",
+            Email = $"test.{Guid.NewGuid()}@example.com",
+            Password = "Password123!",
+            Birthdate = new DateTime(1990, 1, 1),
+            Gender = "Male"
+        });
+        var body = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

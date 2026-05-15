@@ -1,5 +1,6 @@
 using ClinicAppointmentBookingSystem.Models.DTOs.Clinics;
 using ClinicAppointmentBookingSystem.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicAppointmentBookingSystem.Controllers;
@@ -37,8 +38,10 @@ public class ClinicsController(IClinicService clinicService) : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="409">A clinic with this name already exists.</response>
     [HttpPost]
+    [Authorize]
     [ProducesResponseType(typeof(ClinicResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create(CreateClinicRequest request)
     {
@@ -58,8 +61,10 @@ public class ClinicsController(IClinicService clinicService) : ControllerBase
     /// <response code="404">Clinic not found.</response>
     /// <response code="409">A clinic with this name already exists.</response>
     [HttpPut("{id}")]
+    [Authorize]
     [ProducesResponseType(typeof(ClinicResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Update(int id, UpdateClinicRequest request)
@@ -78,7 +83,9 @@ public class ClinicsController(IClinicService clinicService) : ControllerBase
     /// <response code="404">Clinic not found.</response>
     /// <response code="409">Clinic has appointments and cannot be deleted.</response>
     [HttpDelete("{id}")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(int id)

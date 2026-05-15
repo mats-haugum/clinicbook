@@ -5,6 +5,11 @@ namespace ClinicAppointmentBookingSystem.Data;
 
 public class ClinicBookingDbContext(DbContextOptions<ClinicBookingDbContext> options) : DbContext(options)
 {
+    // Table names in database. 
+    // EF Core needs to be able to set this when ClinicBookingDbContext is constructed
+    // The gateway to the database table from C# code. Every LINQ query you write goes through it:
+    // SELECT * FROM Specialities
+    // await db.Specialities.ToListAsync();
     public DbSet<Speciality> Specialities { get; set; }
     public DbSet<Clinic> Clinics { get; set; }
     public DbSet<Doctor> Doctors { get; set; }

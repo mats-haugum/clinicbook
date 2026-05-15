@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClinicAppointmentBookingSystem.Migrations
 {
     [DbContext(typeof(ClinicBookingDbContext))]
-    [Migration("20260506120237_InitialSeed2")]
-    partial class InitialSeed2
+    [Migration("20260508092149_InitialSeed")]
+    partial class InitialSeed
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -271,6 +271,9 @@ namespace ClinicAppointmentBookingSystem.Migrations
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("PasswordSalt")
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<string>("Religion")
                         .HasColumnType("nvarchar(max)");

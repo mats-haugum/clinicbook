@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Custom colour palette — based on Sutter Health design reference */
+@theme {
+  --color-primary:   #1a3c3c; /* dark teal — header, hero, footer */
+  --color-accent:    #00b2a9; /* bright teal — buttons, icons, links */
+  --color-mint:      #d4f5f2; /* light aqua — section backgrounds */
+  --color-dark:      #1a1a1a; /* near-black — body text */
+}
+
+/* Base reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: #1a1a1a;
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
