@@ -1,89 +1,94 @@
-import { useState } from 'react'
-import { searchDoctors, type DoctorSearchResult } from '../api/doctors'
+import { useState, useEffect } from 'react';
+import { searchDoctors, type DoctorSearchResult } from '../api/doctors';
+import { extractApiError } from '../utils/apiError';
 
 export default function SearchPage() {
-  // useState stores values that the component needs to remember between renders.
-  // Whenever any of these change, React re-renders the component automatically.
-  const [name, setName]       = useState('')
-  const [results, setResults] = useState<DoctorSearchResult[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState<string | null>(null)
+	const [name, setName] = useState('');
+	const [results, setResults] = useState<DoctorSearchResult[]>([]);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	// Tracks whether the user has typed anything yet — so we don't show
+	// "no results" before they've had a chance to type.
+	const [hasSearched, setHasSearched] = useState(false);
 
-  async function handleSearch() {
-    setLoading(true)
-    setError(null)
-    setResults([])
+	// useEffect runs a side effect whenever its dependencies change.
+	// Here the dependency is `name` — so this runs on every keystroke.
+	useEffect(() => {
+		// If the input is cleared, reset everything and stop.
+		if (!name.trim()) {
+			setResults([]);
+			setError(null);
+			setHasSearched(false);
+			return;
+		}
 
-    try {
-      const data = await searchDoctors(name)
-      setResults(data)
-    } catch (err: unknown) {
-      // axios puts the HTTP status code on err.response.status
-      const status = (err as { response?: { status: number } }).response?.status
-      if (status === 404) {
-        setError(`No doctors found matching "${name}".`)
-      } else if (status === 400) {
-        setError('Please enter a name to search.')
-      } else {
-        setError('Something went wrong. Please try again.')
-      }
-    } finally {
-      // finally always runs — clears the spinner whether the call succeeded or failed
-      setLoading(false)
-    }
-  }
+		// Schedule the API call 400ms in the future.
+		// If the user types again before 400ms, the cleanup below cancels this timer
+		// and a new one is scheduled — so the API is only called when typing pauses.
+		const timer = setTimeout(async () => {
+			setLoading(true);
+			setError(null);
+			setHasSearched(true);
 
-  return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
-      <h1 className="text-3xl font-bold text-primary mb-2">Find a Doctor</h1>
-      <p className="text-gray-500 mb-8">Search by first or last name.</p>
+			try {
+				const data = await searchDoctors(name);
+				setResults(data);
+			} catch (err: unknown) {
+				const status = (err as { response?: { status: number } }).response?.status;
+				if (status === 404) {
+					setResults([]);
+				} else {
+					setError(extractApiError(err, 'Something went wrong. Please try again.'));
+				}
+			} finally {
+				setLoading(false);
+			}
+		}, 400);
 
-      {/* e.preventDefault() stops the browser reloading the page on submit */}
-      <form onSubmit={e => { e.preventDefault(); handleSearch() }} className="flex gap-3 mb-8">
-        <input
-          type="text"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="e.g. James or Wilson"
-          className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-accent"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-accent text-white px-6 py-2 rounded-lg font-medium hover:bg-primary transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Searching...' : 'Search'}
-        </button>
-      </form>
+		// This cleanup function runs before the next effect fires.
+		// It cancels the pending timer, preventing a stale API call.
+		return () => clearTimeout(timer);
+	}, [name]);
 
-      {/* Loading spinner — animate-spin is a built-in Tailwind animation */}
-      {loading && (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
+	return (
+		<div className="max-w-3xl mx-auto px-6 py-12">
+			<h1 className="text-3xl font-bold text-primary mb-2">Find a Doctor</h1>
+			<p className="text-gray-500 mb-8">Search by first or last name.</p>
+			<div className="relative mb-8">
+				<input
+					type="text"
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					placeholder="e.g. James or Wilson"
+					className="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-accent"
+				/>
+				{/* Spinner inside the input while loading */}
+				{loading && (
+					<div className="absolute right-3 top-1/2 -translate-y-1/2">
+						<div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+					</div>
+				)}
+			</div>
 
-      {/* Error message */}
-      {error && (
-        <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          {error}
-        </p>
-      )}
+			{error && <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">{error}</p>}
 
-      {/* Results list */}
-      {results.length > 0 && (
-        <ul className="space-y-3">
-          {results.map((result, index) => (
-            // key helps React track which items changed when the list updates
-            <li key={index} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-              <p className="text-lg font-semibold text-primary">{result.fullName}</p>
-              <p className="text-sm text-gray-500 mt-1">
-                {result.speciality} &middot; {result.clinicName}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
+			{results.length > 0 && (
+				<ul className="space-y-3">
+					{results.map((result, index) => (
+						<li key={index} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+							<p className="text-lg font-semibold text-primary">{result.fullName}</p>
+							<p className="text-sm text-gray-500 mt-1">
+								{result.speciality} &middot; {result.clinicName}
+							</p>
+						</li>
+					))}
+				</ul>
+			)}
+
+			{/* Only show "no results" after a real search has completed with no matches */}
+			{hasSearched && !loading && results.length === 0 && !error && (
+				<p className="text-gray-500 text-center py-8">No doctors found matching "{name}".</p>
+			)}
+		</div>
+	);
 }

@@ -32,6 +32,27 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    /// <summary>Returns 30-minute availability slots for a doctor on a given date (08:00–17:00).</summary>
+    /// <param name="id">The doctor ID.</param>
+    /// <param name="date">The date to check (YYYY-MM-DD).</param>
+    /// <returns>List of slots, each with a start time, end time, and availability flag.</returns>
+    /// <response code="200">List of time slots.</response>
+    /// <response code="400">Date parameter is missing or invalid.</response>
+    /// <response code="404">Doctor not found.</response>
+    [HttpGet("{id}/availability")]
+    [ProducesResponseType(typeof(List<DoctorAvailabilitySlot>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAvailability(int id, [FromQuery] DateOnly date)
+    {
+        try
+        {
+            var slots = await doctorService.GetAvailabilityAsync(id, date);
+            return Ok(slots);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
     /// <summary>Searches for doctors by first or last name.</summary>
     /// <param name="name">The name to search for.</param>
     /// <returns>A list of matching doctors with their clinic and speciality.</returns>
@@ -60,7 +81,7 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="404">Speciality or clinic not found.</response>
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(DoctorResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -82,7 +103,7 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="404">Doctor or speciality not found.</response>
     [HttpPut("{id}")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(DoctorResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -102,7 +123,7 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="404">Doctor not found.</response>
     /// <response code="409">Doctor has appointments and cannot be deleted.</response>
     [HttpDelete("{id}")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

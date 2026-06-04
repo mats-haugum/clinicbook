@@ -17,10 +17,43 @@ namespace ClinicAppointmentBookingSystem.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.7")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.Admin", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("PasswordSalt")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Admins");
+                });
 
             modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.Appointment", b =>
                 {
@@ -36,11 +69,17 @@ namespace ClinicAppointmentBookingSystem.Migrations
                     b.Property<int>("ClinicId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("DoctorId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<int>("PatientId")
                         .HasColumnType("int");
@@ -69,6 +108,12 @@ namespace ClinicAppointmentBookingSystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -81,21 +126,25 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         new
                         {
                             Id = 1,
+                            IsDeleted = false,
                             Name = "General Checkup"
                         },
                         new
                         {
                             Id = 2,
+                            IsDeleted = false,
                             Name = "Follow-up"
                         },
                         new
                         {
                             Id = 3,
+                            IsDeleted = false,
                             Name = "Specialist Consultation"
                         },
                         new
                         {
                             Id = 4,
+                            IsDeleted = false,
                             Name = "Urgent Care"
                         });
                 });
@@ -112,6 +161,12 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -125,12 +180,14 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         {
                             Id = 1,
                             Address = "123 Main Street, Cape Town",
+                            IsDeleted = false,
                             Name = "City Medical Center"
                         },
                         new
                         {
                             Id = 2,
                             Address = "456 Oak Avenue, Johannesburg",
+                            IsDeleted = false,
                             Name = "Westside Health Clinic"
                         });
                 });
@@ -143,9 +200,15 @@ namespace ClinicAppointmentBookingSystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -165,6 +228,7 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         {
                             Id = 1,
                             FirstName = "James",
+                            IsDeleted = false,
                             LastName = "Wilson",
                             SpecialityId = 1
                         },
@@ -172,6 +236,7 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         {
                             Id = 2,
                             FirstName = "Sarah",
+                            IsDeleted = false,
                             LastName = "Connor",
                             SpecialityId = 2
                         },
@@ -179,6 +244,7 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         {
                             Id = 3,
                             FirstName = "Emily",
+                            IsDeleted = false,
                             LastName = "Chen",
                             SpecialityId = 3
                         },
@@ -186,6 +252,7 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         {
                             Id = 4,
                             FirstName = "Michael",
+                            IsDeleted = false,
                             LastName = "Brown",
                             SpecialityId = 1
                         });
@@ -244,6 +311,9 @@ namespace ClinicAppointmentBookingSystem.Migrations
                     b.Property<DateTime>("Birthdate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("DriversLicenseNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -261,6 +331,9 @@ namespace ClinicAppointmentBookingSystem.Migrations
 
                     b.Property<string>("InsuranceMemberNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -289,6 +362,37 @@ namespace ClinicAppointmentBookingSystem.Migrations
                     b.ToTable("Patients");
                 });
 
+            modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.Speciality", b =>
                 {
                     b.Property<int>("Id")
@@ -296,6 +400,12 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -309,16 +419,19 @@ namespace ClinicAppointmentBookingSystem.Migrations
                         new
                         {
                             Id = 1,
+                            IsDeleted = false,
                             Name = "General Practice"
                         },
                         new
                         {
                             Id = 2,
+                            IsDeleted = false,
                             Name = "Cardiology"
                         },
                         new
                         {
                             Id = 3,
+                            IsDeleted = false,
                             Name = "Dermatology"
                         });
                 });
@@ -328,25 +441,25 @@ namespace ClinicAppointmentBookingSystem.Migrations
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.AppointmentCategory", "Category")
                         .WithMany("Appointments")
                         .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Clinic", "Clinic")
                         .WithMany("Appointments")
                         .HasForeignKey("ClinicId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Doctor", "Doctor")
                         .WithMany("Appointments")
                         .HasForeignKey("DoctorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Patient", "Patient")
                         .WithMany("Appointments")
                         .HasForeignKey("PatientId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Category");
@@ -363,7 +476,7 @@ namespace ClinicAppointmentBookingSystem.Migrations
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Speciality", "Speciality")
                         .WithMany("Doctors")
                         .HasForeignKey("SpecialityId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Speciality");
@@ -374,18 +487,29 @@ namespace ClinicAppointmentBookingSystem.Migrations
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Clinic", "Clinic")
                         .WithMany("DoctorClinics")
                         .HasForeignKey("ClinicId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Doctor", "Doctor")
                         .WithMany("DoctorClinics")
                         .HasForeignKey("DoctorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Clinic");
 
                     b.Navigation("Doctor");
+                });
+
+            modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("ClinicAppointmentBookingSystem.Models.Entities.Patient", "Patient")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Patient");
                 });
 
             modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.AppointmentCategory", b =>
@@ -410,6 +534,8 @@ namespace ClinicAppointmentBookingSystem.Migrations
             modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.Patient", b =>
                 {
                     b.Navigation("Appointments");
+
+                    b.Navigation("RefreshTokens");
                 });
 
             modelBuilder.Entity("ClinicAppointmentBookingSystem.Models.Entities.Speciality", b =>

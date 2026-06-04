@@ -38,7 +38,7 @@ public class AppointmentCategoriesController(IAppointmentCategoryService categor
     /// <response code="400">Validation failed.</response>
     /// <response code="409">A category with this name already exists.</response>
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(AppointmentCategoryResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -61,7 +61,7 @@ public class AppointmentCategoriesController(IAppointmentCategoryService categor
     /// <response code="404">Category not found.</response>
     /// <response code="409">A category with this name already exists.</response>
     [HttpPut("{id}")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(AppointmentCategoryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -83,7 +83,7 @@ public class AppointmentCategoriesController(IAppointmentCategoryService categor
     /// <response code="404">Category not found.</response>
     /// <response code="409">Category has appointments assigned and cannot be deleted.</response>
     [HttpDelete("{id}")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -183,4 +183,39 @@ public class ClinicsControllerTests(CustomWebApplicationFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    // -------------------------------------------------------------------------
+    // Soft delete verification
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Delete_SoftDeletes_ClinicNoLongerInGetAll()
+    {
+        var created = await _client.PostAsJsonAsync("/clinics", new CreateClinicRequest
+        {
+            Name = "SoftDeletedClinic", Address = "1 Ghost Street"
+        });
+        var clinic = await created.Content.ReadFromJsonAsync<ClinicResponse>();
+        await _client.DeleteAsync($"/clinics/{clinic!.Id}");
+
+        var body = await (await _client.GetAsync("/clinics"))
+            .Content.ReadFromJsonAsync<List<ClinicResponse>>();
+
+        body!.Should().NotContain(c => c.Id == clinic.Id);
+    }
+
+    [Fact]
+    public async Task Delete_SoftDeletes_ClinicGetByIdReturnsNotFound()
+    {
+        var created = await _client.PostAsJsonAsync("/clinics", new CreateClinicRequest
+        {
+            Name = "SoftDeletedClinic2", Address = "2 Ghost Street"
+        });
+        var clinic = await created.Content.ReadFromJsonAsync<ClinicResponse>();
+        await _client.DeleteAsync($"/clinics/{clinic!.Id}");
+
+        var response = await _client.GetAsync($"/clinics/{clinic.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

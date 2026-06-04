@@ -32,7 +32,7 @@ public class ClinicService(ClinicBookingDbContext db) : IClinicService
 
     public async Task<ClinicResponse> UpdateAsync(int id, UpdateClinicRequest request)
     {
-        var clinic = await db.Clinics.FindAsync(id)
+        var clinic = await db.Clinics.FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException($"Clinic {id} not found.");
 
         if (await db.Clinics.AnyAsync(c => c.Name == request.Name && c.Id != id))
@@ -47,7 +47,7 @@ public class ClinicService(ClinicBookingDbContext db) : IClinicService
 
     public async Task DeleteAsync(int id)
     {
-        var clinic = await db.Clinics.FindAsync(id)
+        var clinic = await db.Clinics.FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException($"Clinic {id} not found.");
 
         if (await db.Appointments.AnyAsync(a => a.ClinicId == id))

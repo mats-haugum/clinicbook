@@ -259,4 +259,55 @@ public class DoctorsControllerTests(CustomWebApplicationFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    // -------------------------------------------------------------------------
+    // Soft delete verification
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Delete_SoftDeletes_DoctorNoLongerInGetAll()
+    {
+        var created = await _client.PostAsJsonAsync("/doctors", new CreateDoctorRequest
+        {
+            FirstName = "Soft", LastName = "DeletedDoc", SpecialityId = 1, ClinicIds = [1]
+        });
+        var doctor = await created.Content.ReadFromJsonAsync<DoctorResponse>();
+        await _client.DeleteAsync($"/doctors/{doctor!.Id}");
+
+        var body = await (await _client.GetAsync("/doctors"))
+            .Content.ReadFromJsonAsync<List<DoctorResponse>>();
+
+        body!.Should().NotContain(d => d.Id == doctor.Id);
+    }
+
+    [Fact]
+    public async Task Delete_SoftDeletes_DoctorGetByIdReturnsNotFound()
+    {
+        var created = await _client.PostAsJsonAsync("/doctors", new CreateDoctorRequest
+        {
+            FirstName = "Soft", LastName = "DeletedDoc2", SpecialityId = 1, ClinicIds = [1]
+        });
+        var doctor = await created.Content.ReadFromJsonAsync<DoctorResponse>();
+        await _client.DeleteAsync($"/doctors/{doctor!.Id}");
+
+        var response = await _client.GetAsync($"/doctors/{doctor.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Delete_SoftDeletes_DoctorNoLongerInSearch()
+    {
+        var created = await _client.PostAsJsonAsync("/doctors", new CreateDoctorRequest
+        {
+            FirstName = "Vanishing", LastName = "DoctorSearch", SpecialityId = 1, ClinicIds = [1]
+        });
+        var doctor = await created.Content.ReadFromJsonAsync<DoctorResponse>();
+        await _client.DeleteAsync($"/doctors/{doctor!.Id}");
+
+        var response = await _client.GetAsync("/doctors/search?name=Vanishing");
+
+        // Soft-deleted doctor must not appear in search results
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

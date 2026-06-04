@@ -7,6 +7,7 @@ public interface IDoctorService
     Task<List<DoctorResponse>> GetAllAsync();
     Task<DoctorResponse?> GetByIdAsync(int id);
     Task<List<DoctorSearchResponse>> SearchAsync(string name);
+    Task<List<DoctorAvailabilitySlot>> GetAvailabilityAsync(int doctorId, DateOnly date);
     Task<DoctorResponse> CreateAsync(CreateDoctorRequest request);
     Task<DoctorResponse> UpdateAsync(int id, UpdateDoctorRequest request);
     Task DeleteAsync(int id);

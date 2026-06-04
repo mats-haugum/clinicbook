@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using ClinicAppointmentBookingSystem.Data;
 using ClinicAppointmentBookingSystem.Services;
+using ClinicAppointmentBookingSystem.Services.Admin;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -22,6 +23,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAdminAuthService, AdminAuthService>();
 builder.Services.AddScoped<ISpecialityService, SpecialityService>();
 builder.Services.AddScoped<IAppointmentCategoryService, AppointmentCategoryService>();
 builder.Services.AddScoped<IClinicService, ClinicService>();
@@ -45,7 +47,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = jwtSettings["Issuer"],
             ValidAudience = jwtSettings["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!))
+                Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!)),
+            // Tell ASP.NET Core that the "role" claim in our JWTs is the role claim.
+            // Without this, [Authorize(Roles = "Admin")] would look for the long
+            // ClaimTypes.Role URI instead of the short "role" name we put in the token.
+            RoleClaimType = "role",
         };
     });
 
@@ -81,6 +87,14 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// On startup, create the default admin account if one does not exist yet.
+// Credentials come from appsettings.json → AdminSeed, so they are never hardcoded.
+using (var scope = app.Services.CreateScope())
+{
+    var db     = scope.ServiceProvider.GetRequiredService<ClinicBookingDbContext>();
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    await AdminSeeder.SeedAsync(db, config);
+}
 
 // ./Properties/launchSettings.json
 if (app.Environment.IsDevelopment())

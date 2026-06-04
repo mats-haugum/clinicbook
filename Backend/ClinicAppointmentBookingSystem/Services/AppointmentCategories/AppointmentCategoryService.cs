@@ -31,7 +31,7 @@ public class AppointmentCategoryService(ClinicBookingDbContext db) : IAppointmen
 
     public async Task<AppointmentCategoryResponse> UpdateAsync(int id, CreateAppointmentCategoryRequest request)
     {
-        var category = await db.AppointmentCategories.FindAsync(id)
+        var category = await db.AppointmentCategories.FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException($"Category {id} not found.");
 
         if (await db.AppointmentCategories.AnyAsync(c => c.Name == request.Name && c.Id != id))
@@ -45,7 +45,7 @@ public class AppointmentCategoryService(ClinicBookingDbContext db) : IAppointmen
 
     public async Task DeleteAsync(int id)
     {
-        var category = await db.AppointmentCategories.FindAsync(id)
+        var category = await db.AppointmentCategories.FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException($"Category {id} not found.");
 
         if (await db.Appointments.AnyAsync(a => a.CategoryId == id))

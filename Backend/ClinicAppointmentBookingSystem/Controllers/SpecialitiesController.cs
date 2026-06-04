@@ -38,7 +38,7 @@ public class SpecialitiesController(ISpecialityService specialityService) : Cont
     /// <response code="400">Validation failed.</response>
     /// <response code="409">A speciality with this name already exists.</response>
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(SpecialityResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -61,7 +61,7 @@ public class SpecialitiesController(ISpecialityService specialityService) : Cont
     /// <response code="404">Speciality not found.</response>
     /// <response code="409">A speciality with this name already exists.</response>
     [HttpPut("{id}")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(SpecialityResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -83,7 +83,7 @@ public class SpecialitiesController(ISpecialityService specialityService) : Cont
     /// <response code="404">Speciality not found.</response>
     /// <response code="409">Speciality has doctors assigned and cannot be deleted.</response>
     [HttpDelete("{id}")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

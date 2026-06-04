@@ -31,7 +31,7 @@ public class SpecialityService(ClinicBookingDbContext db) : ISpecialityService
 
     public async Task<SpecialityResponse> UpdateAsync(int id, CreateSpecialityRequest request)
     {
-        var speciality = await db.Specialities.FindAsync(id)
+        var speciality = await db.Specialities.FirstOrDefaultAsync(s => s.Id == id)
             ?? throw new KeyNotFoundException($"Speciality {id} not found.");
 
         if (await db.Specialities.AnyAsync(s => s.Name == request.Name && s.Id != id))
@@ -45,7 +45,7 @@ public class SpecialityService(ClinicBookingDbContext db) : ISpecialityService
 
     public async Task DeleteAsync(int id)
     {
-        var speciality = await db.Specialities.FindAsync(id)
+        var speciality = await db.Specialities.FirstOrDefaultAsync(s => s.Id == id)
             ?? throw new KeyNotFoundException($"Speciality {id} not found.");
 
         if (await db.Doctors.AnyAsync(d => d.SpecialityId == id))

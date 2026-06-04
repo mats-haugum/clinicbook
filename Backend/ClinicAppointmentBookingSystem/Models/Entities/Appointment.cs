@@ -1,10 +1,13 @@
 namespace ClinicAppointmentBookingSystem.Models.Entities;
 
-public class Appointment
+public class Appointment : ISoftDeletable
 {
     public int Id { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
 
     public int PatientId { get; set; }
     public Patient Patient { get; set; } = null!;

@@ -5,11 +5,7 @@ namespace ClinicAppointmentBookingSystem.Data;
 
 public class ClinicBookingDbContext(DbContextOptions<ClinicBookingDbContext> options) : DbContext(options)
 {
-    // Table names in database. 
-    // EF Core needs to be able to set this when ClinicBookingDbContext is constructed
-    // The gateway to the database table from C# code. Every LINQ query you write goes through it:
-    // SELECT * FROM Specialities
-    // await db.Specialities.ToListAsync();
+    // One DbSet per table — the entry point for all LINQ queries against that table
     public DbSet<Speciality> Specialities { get; set; }
     public DbSet<Clinic> Clinics { get; set; }
     public DbSet<Doctor> Doctors { get; set; }
@@ -17,11 +13,73 @@ public class ClinicBookingDbContext(DbContextOptions<ClinicBookingDbContext> opt
     public DbSet<AppointmentCategory> AppointmentCategories { get; set; }
     public DbSet<Patient> Patients { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<Admin> Admins { get; set; }
+
+    // Intercepts every db.Remove() call on a soft-deletable entity.
+    // Instead of issuing a DELETE statement, EF issues an UPDATE that sets IsDeleted = true.
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<ISoftDeletable>()
+            .Where(e => e.State == EntityState.Deleted))
+        {
+            // Flip state to Modified so EF generates UPDATE instead of DELETE
+            entry.State = EntityState.Modified;
+            entry.Entity.IsDeleted = true;
+            entry.Entity.DeletedAt = DateTime.UtcNow;
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DoctorClinic>()
             .HasKey(dc => new { dc.DoctorId, dc.ClinicId });
+
+        // Global query filters — EF automatically appends WHERE IsDeleted = 0 to every
+        // query on these entities, so soft-deleted records are invisible to all code.
+        modelBuilder.Entity<Appointment>().HasQueryFilter(a => !a.IsDeleted);
+        modelBuilder.Entity<Patient>().HasQueryFilter(p => !p.IsDeleted);
+        modelBuilder.Entity<Doctor>().HasQueryFilter(d => !d.IsDeleted);
+        modelBuilder.Entity<Clinic>().HasQueryFilter(c => !c.IsDeleted);
+        modelBuilder.Entity<Speciality>().HasQueryFilter(s => !s.IsDeleted);
+        modelBuilder.Entity<AppointmentCategory>().HasQueryFilter(ac => !ac.IsDeleted);
+
+        // Disable cascade delete on all required FK relationships.
+        // We soft-delete parents instead of hard-deleting them, so the FK constraint
+        // is never violated and Restrict (= NO ACTION in SQL) is safe here.
+        modelBuilder.Entity<Appointment>()
+            .HasOne(a => a.Patient).WithMany(p => p.Appointments)
+            .HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Appointment>()
+            .HasOne(a => a.Doctor).WithMany(d => d.Appointments)
+            .HasForeignKey(a => a.DoctorId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Appointment>()
+            .HasOne(a => a.Clinic).WithMany(c => c.Appointments)
+            .HasForeignKey(a => a.ClinicId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Appointment>()
+            .HasOne(a => a.Category).WithMany(ac => ac.Appointments)
+            .HasForeignKey(a => a.CategoryId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Doctor>()
+            .HasOne(d => d.Speciality).WithMany(s => s.Doctors)
+            .HasForeignKey(d => d.SpecialityId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.Patient).WithMany(p => p.RefreshTokens)
+            .HasForeignKey(rt => rt.PatientId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<DoctorClinic>()
+            .HasOne(dc => dc.Doctor).WithMany(d => d.DoctorClinics)
+            .HasForeignKey(dc => dc.DoctorId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<DoctorClinic>()
+            .HasOne(dc => dc.Clinic).WithMany(c => c.DoctorClinics)
+            .HasForeignKey(dc => dc.ClinicId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Speciality>().HasData(
             new Speciality { Id = 1, Name = "General Practice" },

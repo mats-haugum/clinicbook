@@ -20,33 +20,53 @@ public class AuthService(ClinicBookingDbContext db, IConfiguration config) : IAu
             throw new InvalidOperationException("An account with this email already exists.");
 
         var salt = GenerateSalt();
-        var patient = new Patient
-        {
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            Email = request.Email,
-            Birthdate = request.Birthdate,
-            Gender = request.Gender,
-            UserType = UserType.Patient,
-            PasswordSalt = salt,
-            PasswordHash = HashPassword(request.Password, salt),
-            SSN = request.SSN,
-            TaxNumber = request.TaxNumber,
-            Religion = request.Religion,
-            DriversLicenseNumber = request.DriversLicenseNumber,
-            InsuranceMemberNumber = request.InsuranceMemberNumber
-        };
 
-        db.Patients.Add(patient);
+        // If a guest account exists with this email, upgrade it in-place rather than
+        // creating a second row. The PatientId stays the same, so every appointment
+        // the guest already booked is automatically owned by the new registered account.
+        var existing = await db.Patients.FirstOrDefaultAsync(p =>
+            p.Email == request.Email && p.UserType == UserType.Guest);
+
+        Patient patient;
+        if (existing is not null)
+        {
+            existing.UserType             = UserType.Patient;
+            existing.FirstName            = request.FirstName;
+            existing.LastName             = request.LastName;
+            existing.Birthdate            = request.Birthdate;
+            existing.Gender               = request.Gender;
+            existing.PasswordSalt         = salt;
+            existing.PasswordHash         = HashPassword(request.Password, salt);
+            existing.SSN                  = request.SSN;
+            existing.TaxNumber            = request.TaxNumber;
+            existing.Religion             = request.Religion;
+            existing.DriversLicenseNumber = request.DriversLicenseNumber;
+            existing.InsuranceMemberNumber = request.InsuranceMemberNumber;
+            patient = existing;
+        }
+        else
+        {
+            patient = new Patient
+            {
+                FirstName             = request.FirstName,
+                LastName              = request.LastName,
+                Email                 = request.Email,
+                Birthdate             = request.Birthdate,
+                Gender                = request.Gender,
+                UserType              = UserType.Patient,
+                PasswordSalt          = salt,
+                PasswordHash          = HashPassword(request.Password, salt),
+                SSN                   = request.SSN,
+                TaxNumber             = request.TaxNumber,
+                Religion              = request.Religion,
+                DriversLicenseNumber  = request.DriversLicenseNumber,
+                InsuranceMemberNumber = request.InsuranceMemberNumber
+            };
+            db.Patients.Add(patient);
+        }
+
         await db.SaveChangesAsync();
-
-        return new AuthResponse
-        {
-            Token = GenerateToken(patient),
-            FirstName = patient.FirstName,
-            LastName = patient.LastName,
-            Email = patient.Email
-        };
+        return await BuildAuthResponseAsync(patient);
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
@@ -57,12 +77,68 @@ public class AuthService(ClinicBookingDbContext db, IConfiguration config) : IAu
         if (patient is null || !VerifyPassword(request.Password, patient.PasswordHash!, patient.PasswordSalt!))
             throw new UnauthorizedAccessException("Invalid email or password.");
 
+        return await BuildAuthResponseAsync(patient);
+    }
+
+    public async Task<AuthResponse> RefreshAsync(string refreshToken)
+    {
+        // Find the token in the database and load the associated patient
+        var stored = await db.RefreshTokens
+            .Include(rt => rt.Patient)
+            .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+
+        // Reject if the token does not exist, the patient was soft-deleted, is expired, or it was revoked
+        if (stored is null || stored.Patient is null || stored.ExpiresAt < DateTime.UtcNow || stored.IsRevoked)
+            throw new UnauthorizedAccessException("Invalid or expired refresh token.");
+
+        // Token rotation: revoke the used token so it cannot be reused
+        stored.IsRevoked = true;
+
+        var response = await BuildAuthResponseAsync(stored.Patient);
+        await db.SaveChangesAsync();
+        return response;
+    }
+
+    public async Task<GuestPrefillResponse> GetGuestPrefillAsync(string email)
+    {
+        var guest = await db.Patients
+            .Where(p => p.Email == email && p.UserType == UserType.Guest)
+            .Select(p => new GuestPrefillResponse
+            {
+                FirstName = p.FirstName,
+                LastName  = p.LastName,
+                Email     = p.Email,
+                Birthdate = p.Birthdate,
+                Gender    = p.Gender
+            })
+            .FirstOrDefaultAsync()
+            ?? throw new KeyNotFoundException("No guest booking found for this email address.");
+
+        return guest;
+    }
+
+    // Creates an access token + refresh token, saves the refresh token to the DB,
+    // and returns the full AuthResponse. Used by register, login, and refresh.
+    private async Task<AuthResponse> BuildAuthResponseAsync(Patient patient)
+    {
+        var refreshToken = new RefreshToken
+        {
+            // RandomNumberGenerator.GetBytes produces a cryptographically secure random value
+            Token     = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            PatientId = patient.Id,
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+        };
+
+        db.RefreshTokens.Add(refreshToken);
+        await db.SaveChangesAsync();
+
         return new AuthResponse
         {
-            Token = GenerateToken(patient),
-            FirstName = patient.FirstName,
-            LastName = patient.LastName,
-            Email = patient.Email
+            Token        = GenerateToken(patient),
+            RefreshToken = refreshToken.Token,
+            FirstName    = patient.FirstName,
+            LastName     = patient.LastName,
+            Email        = patient.Email
         };
     }
 
@@ -110,10 +186,15 @@ public class AuthService(ClinicBookingDbContext db, IConfiguration config) : IAu
 
         var claims = new[]
         {
+            // jti (JWT ID) is a unique identifier for this specific token instance.
+            // Without it, two tokens for the same patient issued in the same second would be identical.
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim(JwtRegisteredClaimNames.Sub, patient.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, patient.Email),
             new Claim(JwtRegisteredClaimNames.GivenName, patient.FirstName),
-            new Claim(JwtRegisteredClaimNames.FamilyName, patient.LastName)
+            new Claim(JwtRegisteredClaimNames.FamilyName, patient.LastName),
+            // "role" matches the RoleClaimType configured in Program.cs — used by [Authorize(Roles = "...")]
+            new Claim("role", "Patient"),
         };
 
         var token = new JwtSecurityToken(

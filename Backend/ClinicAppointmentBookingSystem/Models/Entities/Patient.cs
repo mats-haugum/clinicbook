@@ -2,9 +2,12 @@ using ClinicAppointmentBookingSystem.Models.Enums;
 
 namespace ClinicAppointmentBookingSystem.Models.Entities;
 
-public class Patient
+public class Patient : ISoftDeletable
 {
     public int Id { get; set; }
+
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public required string Email { get; set; }
@@ -22,4 +25,5 @@ public class Patient
     public string? InsuranceMemberNumber { get; set; }
 
     public ICollection<Appointment> Appointments { get; set; } = [];
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }

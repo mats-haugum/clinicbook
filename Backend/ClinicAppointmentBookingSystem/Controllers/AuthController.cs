@@ -43,6 +43,56 @@ public class AuthController(IAuthService authService) : ControllerBase
     }
 
     /// <summary>
+    /// Issues a new access token and refresh token using a valid refresh token.
+    /// </summary>
+    /// <remarks>The old refresh token is revoked immediately (token rotation).</remarks>
+    /// <param name="request">The refresh token.</param>
+    /// <response code="200">New tokens issued.</response>
+    /// <response code="401">Refresh token is invalid, expired, or revoked.</response>
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Refresh(RefreshTokenRequest request)
+    {
+        try
+        {
+            var response = await authService.RefreshAsync(request.RefreshToken);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Returns the non-sensitive PII stored for a guest booking, used to pre-fill the registration form.
+    /// </summary>
+    /// <remarks>
+    /// Only returns data for UserType.Guest rows — registered patients are not exposed here.
+    /// The frontend calls this on the registration page when the user already has a guest booking.
+    /// </remarks>
+    /// <param name="email">The email address used when the guest booked their appointment.</param>
+    /// <returns>First name, last name, email, birthdate, and gender from the guest record.</returns>
+    /// <response code="200">Guest record found, pre-fill data returned.</response>
+    /// <response code="404">No guest booking exists for this email address.</response>
+    [HttpGet("guest-prefill")]
+    [ProducesResponseType(typeof(GuestPrefillResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetGuestPrefill([FromQuery] string email)
+    {
+        try
+        {
+            var response = await authService.GetGuestPrefillAsync(email);
+            return Ok(response);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Logs in an existing patient.
     /// </summary>
     /// <remarks>
