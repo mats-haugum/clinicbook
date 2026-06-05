@@ -31,19 +31,68 @@ The system is built as a REST API (ASP.NET Core) backed by SQL Server via Entity
 
 ---
 
+### LIBRARIES
+
+#### Backend (`Backend/ClinicAppointmentBookingSystem`)
+
+| Package | Version | Purpose |
+|---|---|---|
+| `Microsoft.EntityFrameworkCore.SqlServer` | 10.x | EF Core provider for SQL Server — used for all database access and migrations |
+| `Microsoft.EntityFrameworkCore.Design` | 10.x | Design-time tools required to create and apply EF Core migrations |
+| `Microsoft.EntityFrameworkCore.Tools` | 10.x | CLI tools for running `dotnet ef` commands |
+| `Microsoft.AspNetCore.Authentication.JwtBearer` | 10.x | Validates incoming JWT tokens on protected endpoints |
+| `Konscious.Security.Cryptography.Argon2` | 1.3.1 | Argon2id password hashing — used for both patient and admin password storage |
+| `Swashbuckle.AspNetCore` | 6.x | Generates Swagger / OpenAPI documentation, served at `/doc` |
+
+#### Integration Tests (`Backend/ClinicAppointmentBookingSystem.IntegrationTests`)
+
+| Package | Version | Purpose |
+|---|---|---|
+| `xunit` | 2.9.3 | Test framework |
+| `xunit.runner.visualstudio` | 3.1.4 | Runs xUnit tests inside Visual Studio and `dotnet test` |
+| `Microsoft.NET.Test.Sdk` | 17.14.1 | MSBuild integration required to discover and run tests |
+| `Microsoft.AspNetCore.Mvc.Testing` | 10.x | Spins up the full API in-process for integration tests without needing a running server |
+| `Microsoft.EntityFrameworkCore.InMemory` | 10.x | In-memory EF Core provider used in test setup |
+| `FluentAssertions` | 8.9.0 | Readable assertion syntax for test expectations (e.g. `.Should().Be(...)`) |
+| `coverlet.collector` | 6.0.4 | Code coverage collection during test runs |
+
+#### Frontend (`Frontend`)
+
+| Package | Version | Purpose |
+|---|---|---|
+| `react` | 19.x | UI library |
+| `react-dom` | 19.x | React renderer for the browser |
+| `react-router-dom` | 7.x | Client-side routing (`/book`, `/search`, `/login`, etc.) |
+| `axios` | 1.x | HTTP client for all API calls |
+| `tailwindcss` | 4.x | Utility-first CSS framework for styling |
+| `vite` | 8.x | Build tool and dev server |
+| `typescript` | 6.x | Static typing for JavaScript |
+
+---
+
 ### HOW TO RUN
 
 #### Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Node.js 20+](https://nodejs.org/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for SQL Server)
+Make sure the following are installed before continuing:
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) — required to build and run the backend
+- [Node.js 20+](https://nodejs.org/) — required to run the frontend
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — required to run SQL Server
+
+You can verify your installations with:
+
+```bash
+dotnet --version   # should print 10.x.x
+node --version     # should print v20.x.x or higher
+docker --version   # should print Docker version ...
+```
 
 ---
 
 #### 1. Start the database
 
-The application uses SQL Server running in a Docker container.
+The application uses SQL Server 2022 running inside a Docker container.
 
 ```bash
 docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Admin@123" \
@@ -51,34 +100,44 @@ docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Admin@123" \
   -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-> If the container already exists from a previous run, start it with:
+This downloads the image (first run only), creates a container named `sqlserver`, and starts it on port `1433`.
+
+> **Already have the container?** If you have run this before, start the existing container instead:
 > ```bash
 > docker start sqlserver
 > ```
 
+Wait a few seconds for SQL Server to finish starting up before moving to the next step.
+
 ---
 
 #### 2. Run the backend
+
+Open a terminal in the repository root and run:
 
 ```bash
 cd Backend/ClinicAppointmentBookingSystem
 dotnet run
 ```
 
-The API starts at `http://localhost:5000`.  
-On first run, EF Core automatically applies migrations and seeds the database.
+The API will start at **`http://localhost:5000`**.
 
-The default admin account is created automatically:
-- **Email:** `admin@clinicbook.com`
-- **Password:** `Admin@123`
+On first run, EF Core automatically applies all database migrations and seeds the initial data (clinics, doctors, specialities, appointment categories).
 
-Swagger UI is available at `http://localhost:5000/doc`.
+A default admin account is also created automatically:
+
+| Field | Value |
+|---|---|
+| Email | `admin@clinicbook.com` |
+| Password | `Admin@123` |
+
+Interactive API documentation (Swagger UI) is available at **`http://localhost:5000/doc`**.
 
 ---
 
 #### 3. Run the frontend
 
-In a separate terminal:
+Open a **second terminal** in the repository root and run:
 
 ```bash
 cd Frontend
@@ -86,18 +145,24 @@ npm install
 npm run dev
 ```
 
-The frontend starts at `http://localhost:5173`.
+`npm install` only needs to be run once (or after pulling changes that update `package.json`).
+
+The frontend will start at **`http://localhost:5173`**.
+
+Open that URL in your browser. The appointment booking page loads at `/`, the doctor search at `/search`, and the admin panel at `/admin`.
 
 ---
 
 #### 4. Run the integration tests (optional)
 
-The tests require the SQL Server container to be running (step 1). They use a separate database (`ClinicBookingDB_Test`) that is created and wiped automatically.
+The integration tests spin up the full API in-process and run against a dedicated test database (`ClinicBookingDB_Test`). The database is created and wiped automatically — no manual setup is needed, but **the SQL Server container from step 1 must be running**.
 
 ```bash
 cd Backend/ClinicAppointmentBookingSystem.IntegrationTests
 dotnet test
 ```
+
+To see per-test results in the terminal, add `--logger "console;verbosity=normal"`.
 
 ---
 
