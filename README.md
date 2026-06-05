@@ -1,3 +1,36 @@
+# ClinicBook — Clinic Appointment Booking System
+
+![.NET](https://img.shields.io/badge/.NET_10-512BD4?style=flat&logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React_19-20232A?style=flat&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
+![SQL Server](https://img.shields.io/badge/SQL_Server-CC2927?style=flat&logo=microsoftsqlserver&logoColor=white)
+
+> **Exam Project — Backend Development, Year 2**  
+> Noroff School of Technology and Digital Media
+
+---
+
+### About
+
+ClinicBook is a full-stack web application that allows patients to book appointments at medical clinics — no account required. Patients can book as a guest, or register to manage their appointments online. Registered patients can view, reschedule, and cancel their bookings. An admin panel allows clinic staff to manage doctors, clinics, specialities, and appointment categories.
+
+The system is built as a REST API (ASP.NET Core) backed by SQL Server via Entity Framework Core, with a React + TypeScript frontend. Authentication uses JWT access tokens with refresh token rotation.
+
+---
+
+### Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS |
+| Backend | ASP.NET Core (.NET 10), C# |
+| Database | SQL Server 2022 (Docker), Entity Framework Core |
+| Authentication | JWT (access + refresh tokens), Argon2id password hashing |
+| API Docs | Swagger / OpenAPI at `/doc` |
+| Testing | xUnit, FluentAssertions, ASP.NET Core integration tests |
+
+---
+
 ### HOW TO RUN
 
 #### Prerequisites
