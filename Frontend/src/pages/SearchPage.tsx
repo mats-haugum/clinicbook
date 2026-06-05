@@ -22,8 +22,8 @@ export default function SearchPage() {
 			return;
 		}
 
-		// Schedule the API call 400ms in the future.
-		// If the user types again before 400ms, the cleanup below cancels this timer
+		// Schedule the API call 300ms in the future.
+		// If the user types again before 300ms, the cleanup below cancels this timer
 		// and a new one is scheduled — so the API is only called when typing pauses.
 		const timer = setTimeout(async () => {
 			setLoading(true);
@@ -43,7 +43,7 @@ export default function SearchPage() {
 			} finally {
 				setLoading(false);
 			}
-		}, 400);
+		}, 300);
 
 		// This cleanup function runs before the next effect fires.
 		// It cancels the pending timer, preventing a stale API call.
@@ -74,12 +74,29 @@ export default function SearchPage() {
 
 			{results.length > 0 && (
 				<ul className="space-y-3">
-					{results.map((result, index) => (
-						<li key={index} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-							<p className="text-lg font-semibold text-primary">{result.fullName}</p>
-							<p className="text-sm text-gray-500 mt-1">
-								{result.speciality} &middot; {result.clinicName}
-							</p>
+					{/* Group results by doctor (same name + speciality) so a doctor working
+					    at multiple clinics appears only once with all their clinics listed. */}
+					{Object.values(
+						results.reduce<Record<string, { fullName: string; speciality: string; clinics: string[] }>>(
+							(groups, result) => {
+								const key = `${result.fullName}|${result.speciality}`;
+								if (!groups[key]) {
+									groups[key] = { fullName: result.fullName, speciality: result.speciality, clinics: [] };
+								}
+								groups[key].clinics.push(result.clinicName);
+								return groups;
+							},
+							{}
+						)
+					).map((doctor) => (
+						<li key={`${doctor.fullName}|${doctor.speciality}`} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+							<p className="text-lg font-semibold text-primary">{doctor.fullName}</p>
+							<p className="text-sm text-gray-500 mt-1">{doctor.speciality}</p>
+							<ul className="mt-2 space-y-0.5">
+								{doctor.clinics.map((clinic) => (
+									<li key={clinic} className="text-sm text-gray-400">{clinic}</li>
+								))}
+							</ul>
 						</li>
 					))}
 				</ul>

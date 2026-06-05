@@ -9,7 +9,7 @@ import {
 } from '../../api/doctors'
 import { getAllClinics, createClinic, updateClinic, deleteClinic, type ClinicResponse } from '../../api/clinics'
 import { getAllSpecialities, createSpeciality, updateSpeciality, deleteSpeciality, type SpecialityResponse } from '../../api/specialities'
-import { getAllCategories, createCategory, updateCategory, deleteCategory, type CategoryResponse } from '../../api/categories'
+import { getAllCategories, createCategory, updateCategory, deleteCategory } from '../../api/categories'
 
 type Tab = 'doctors' | 'clinics' | 'specialities' | 'categories'
 
@@ -351,10 +351,16 @@ export default function AdminDashboard() {
   const [clinics, setClinics]           = useState<ClinicResponse[]>([])
 
   useEffect(() => {
-    // Redirect away if not an admin
     if (!isAdmin) { navigate('/admin/login', { replace: true }); return }
-    Promise.all([getAllSpecialities(), getAllClinics()]).then(([s, c]) => { setSpecialities(s); setClinics(c) })
   }, [isAdmin, navigate])
+
+  // Refetch specialities and clinics whenever the Doctors tab becomes active.
+  // These are passed as props to DoctorsTab — without this, the speciality/clinic
+  // dropdowns go stale after the admin adds or removes items in the other tabs.
+  useEffect(() => {
+    if (!isAdmin || tab !== 'doctors') return
+    Promise.all([getAllSpecialities(), getAllClinics()]).then(([s, c]) => { setSpecialities(s); setClinics(c) })
+  }, [isAdmin, tab])
 
   if (!isAdmin) return null
 

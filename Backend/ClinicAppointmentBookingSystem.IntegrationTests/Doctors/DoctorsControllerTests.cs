@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ClinicAppointmentBookingSystem.Models.DTOs.Admin;
 using ClinicAppointmentBookingSystem.Models.DTOs.Appointments;
-using ClinicAppointmentBookingSystem.Models.DTOs.Auth;
 using ClinicAppointmentBookingSystem.Models.DTOs.Doctors;
 using FluentAssertions;
 
@@ -16,15 +16,12 @@ public class DoctorsControllerTests(CustomWebApplicationFactory factory)
     public async Task InitializeAsync()
     {
         factory.ResetDatabase();
-        var response = await _client.PostAsJsonAsync("/auth/register", new RegisterRequest
+        var response = await _client.PostAsJsonAsync("/admin/auth/login", new AdminLoginRequest
         {
-            FirstName = "Test", LastName = "User",
-            Email = $"test.{Guid.NewGuid()}@example.com",
-            Password = "Password123!",
-            Birthdate = new DateTime(1990, 1, 1),
-            Gender = "Male"
+            Email = "admin@clinicbook.com",
+            Password = "Admin@123"
         });
-        var body = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        var body = await response.Content.ReadFromJsonAsync<AdminAuthResponse>();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
     }
 
@@ -308,6 +305,52 @@ public class DoctorsControllerTests(CustomWebApplicationFactory factory)
         var response = await _client.GetAsync("/doctors/search?name=Vanishing");
 
         // Soft-deleted doctor must not appear in search results
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /doctors/{id}/availability
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetAvailability_ForDoctorWithNoAppointments_ReturnsAllSlotsAvailable()
+    {
+        // Doctor 1 has no appointments on this date — all 18 slots (08:00–17:00, 30 min each) must be available
+        var response = await _client.GetAsync("/doctors/1/availability?date=2035-01-15");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var slots = await response.Content.ReadFromJsonAsync<List<DoctorAvailabilitySlot>>();
+        slots.Should().HaveCount(18);
+        slots!.Should().AllSatisfy(s => s.IsAvailable.Should().BeTrue());
+    }
+
+    [Fact]
+    public async Task GetAvailability_ForDoctorWithAppointment_MarksOverlappingSlotsUnavailable()
+    {
+        // Book doctor 1 from 09:00–10:00 on 2035-02-01 — covers the 09:00 and 09:30 slots
+        await _client.PostAsJsonAsync("/appointments/book/guest", new GuestBookAppointmentRequest
+        {
+            FirstName = "Guest", LastName = "User", Email = "avail.test@example.com",
+            Birthdate = new DateTime(1990, 1, 1), Gender = "Male",
+            DoctorId = 1, ClinicId = 1, CategoryId = 1,
+            StartTime = new DateTime(2035, 2, 1, 9, 0, 0),
+            EndTime   = new DateTime(2035, 2, 1, 10, 0, 0)
+        });
+
+        var response = await _client.GetAsync("/doctors/1/availability?date=2035-02-01");
+        var slots = (await response.Content.ReadFromJsonAsync<List<DoctorAvailabilitySlot>>())!;
+
+        // 09:00–09:30 and 09:30–10:00 are covered by the appointment
+        slots.Where(s => s.StartTime.Hour == 9).Should().AllSatisfy(s => s.IsAvailable.Should().BeFalse());
+        // All other slots must still be available
+        slots.Where(s => s.StartTime.Hour != 9).Should().AllSatisfy(s => s.IsAvailable.Should().BeTrue());
+    }
+
+    [Fact]
+    public async Task GetAvailability_WithNonExistingDoctorId_ReturnsNotFound()
+    {
+        var response = await _client.GetAsync("/doctors/999/availability?date=2035-01-15");
+
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

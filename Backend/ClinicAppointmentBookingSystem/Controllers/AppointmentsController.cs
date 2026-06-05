@@ -46,7 +46,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     /// <response code="404">Doctor, clinic, or category not found.</response>
     /// <response code="409">A conflicting appointment already exists at this time slot.</response>
     [HttpPost("book")]
-    [Authorize]
+    [Authorize(Roles = "Patient")]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -69,7 +69,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     /// <response code="200">List of appointments.</response>
     /// <response code="401">Not authenticated.</response>
     [HttpGet("my")]
-    [Authorize]
+    [Authorize(Roles = "Patient")]
     [ProducesResponseType(typeof(List<AppointmentResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetMyAppointments()
@@ -88,7 +88,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     /// <response code="404">Appointment not found.</response>
     /// <response code="409">A conflicting appointment already exists at the new time slot.</response>
     [HttpPut("{id}/reschedule")]
-    [Authorize]
+    [Authorize(Roles = "Patient")]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -115,7 +115,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     /// <response code="403">This appointment does not belong to you.</response>
     /// <response code="404">Appointment not found.</response>
     [HttpDelete("{id}/cancel")]
-    [Authorize]
+    [Authorize(Roles = "Patient")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

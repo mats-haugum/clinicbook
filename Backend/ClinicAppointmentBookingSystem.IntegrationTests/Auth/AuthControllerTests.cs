@@ -405,6 +405,46 @@ public class AuthControllerTests(CustomWebApplicationFactory factory) : IClassFi
     }
 
     // -------------------------------------------------------------------------
+    // GET /auth/guest-prefill
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetGuestPrefill_WithValidGuestEmail_ReturnsGuestData()
+    {
+        var email = $"prefill.{Guid.NewGuid()}@example.com";
+        await _client.PostAsJsonAsync("/appointments/book/guest", GuestBookingRequest(email));
+
+        var response = await _client.GetAsync($"/auth/guest-prefill?email={email}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<GuestPrefillResponse>();
+        body!.Email.Should().Be(email);
+        body.FirstName.Should().Be("Guest");
+        body.LastName.Should().Be("User");
+        body.Gender.Should().Be("Female");
+    }
+
+    [Fact]
+    public async Task GetGuestPrefill_WithNonExistentEmail_ReturnsNotFound()
+    {
+        var response = await _client.GetAsync("/auth/guest-prefill?email=nobody@example.com");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetGuestPrefill_WithRegisteredPatientEmail_ReturnsNotFound()
+    {
+        // Prefill only applies to Guest-type rows — registered patients must not be exposed
+        var register = ValidRegisterRequest();
+        await _client.PostAsJsonAsync("/auth/register", register);
+
+        var response = await _client.GetAsync($"/auth/guest-prefill?email={register.Email}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

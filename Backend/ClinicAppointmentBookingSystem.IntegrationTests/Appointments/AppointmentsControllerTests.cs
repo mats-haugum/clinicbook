@@ -220,6 +220,21 @@ public class AppointmentsControllerTests(CustomWebApplicationFactory factory)
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task GetMyAppointments_WithNoBookings_ReturnsEmptyList()
+    {
+        // Register a fresh patient who has not booked any appointments
+        var freshToken = await RegisterAndGetTokenAsync();
+
+        var req = new HttpRequestMessage(HttpMethod.Get, "/appointments/my");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", freshToken);
+        var response = await _client.SendAsync(req);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<AppointmentResponse>>();
+        body.Should().BeEmpty();
+    }
+
     // -------------------------------------------------------------------------
     // PUT /appointments/{id}/reschedule
     // -------------------------------------------------------------------------
