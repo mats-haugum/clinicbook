@@ -1,0 +1,44 @@
+{
+	auto_https off
+	admin off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	encode zstd gzip
+
+	# handle_path matches a URL prefix AND strips it before forwarding, so
+	# a request for /projects/clinicbook/api/doctors arrives at clinicbook's
+	# own Caddy container as just /api/doctors - it never needs to know it's
+	# being served under a subpath.
+	handle_path /projects/clinicbook/* {
+		reverse_proxy clinicbook-web:80 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# Add one handle_path block per project as you deploy more of them, e.g.:
+	# handle_path /projects/other-app/* {
+	# 	reverse_proxy other-app-web:80 {
+	# 		header_up X-Forwarded-Proto https
+	# 	}
+	# }
+
+	handle {
+		respond "Not found" 404
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

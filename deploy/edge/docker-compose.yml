@@ -1,0 +1,36 @@
+name: edge
+
+services:
+  # The one shared reverse proxy for the whole domain. The Cloudflare Tunnel
+  # points at this container; it looks at the request path and forwards to
+  # whichever project's own Caddy container matches (see ./Caddyfile).
+  caddy:
+    image: caddy:2-alpine
+    container_name: edge-caddy
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - public-edge
+
+  # The Cloudflare Tunnel: the only container in this whole setup that talks
+  # to the outside internet. Its Public Hostname (configured in the
+  # Cloudflare dashboard) points at edge-caddy:80, not at any single
+  # project's own container.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+    networks:
+      - public-edge
+
+networks:
+  public-edge:
+    # Created once on the host: `docker network create public-edge`.
+    # Every project's web container joins this same network so edge-caddy
+    # can reach them by container name.
+    external: true

@@ -1,0 +1,60 @@
+name: CI
+
+# Run on every push and every pull request targeting main.
+# This never touches the Ubuntu deployment server - it's a separate,
+# throwaway environment that GitHub provisions and tears down each run.
+on:
+  push:
+    branches: [home-server-build]
+  pull_request:
+    branches: [home-server-build]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # A short-lived SQL Server container, only reachable from this job, only
+    # for the duration of this run. CustomWebApplicationFactory.cs connects to
+    # localhost,1433 with sa/Admin@123, so those must match here exactly.
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Admin@123
+        ports:
+          - 1433:1433
+        # Wait for SQL Server to actually accept connections before the job
+        # continues, instead of racing it.
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Admin@123 -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore ep-2-Delvjn.sln
+
+      - name: Build
+        run: dotnet build ep-2-Delvjn.sln --no-restore -c Release
+
+      - name: Test
+        run: >-
+          dotnet test Backend/ClinicAppointmentBookingSystem.IntegrationTests
+          --no-build -c Release
+          --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/test-results.trx"

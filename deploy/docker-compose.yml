@@ -1,0 +1,88 @@
+name: clinicbook-app
+
+services:
+  # Caddy: serves the built React SPA and reverse-proxies /api/* to the .NET API.
+  # No TLS here - Cloudflare terminates HTTPS at the edge, and the shared
+  # edge Caddy (deploy/edge/) forwards plain HTTP into this container after
+  # stripping the /projects/clinicbook prefix.
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    # A fixed, predictable name so the edge Caddy (a separate compose stack)
+    # can address this container by name on the shared public-edge network.
+    container_name: clinicbook-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - edge
+      # Shared network joining every project's web container to the one
+      # edge Caddy in deploy/edge/. Created once on the host - see its README.
+      - public-edge
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__Default: "Server=db;Database=${DB_NAME};User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      ConnectionStrings__Redis: "cache:6379"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    networks:
+      - edge
+      - data
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD}
+      # Express = free for production, 10GB database cap.
+      # Change to "Developer" for full features (non-production use only).
+      MSSQL_PID: Express
+    volumes:
+      - mssql-data:/var/opt/mssql
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - data
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    networks:
+      - data
+
+  # The Cloudflare Tunnel container itself now lives in deploy/edge/ instead
+  # of here, so one tunnel can front multiple projects by path. See
+  # deploy/edge/README.md.
+
+networks:
+  edge:
+  data:
+    # internal = no outbound internet for db/cache containers
+    internal: true
+  public-edge:
+    # Created once on the host with `docker network create public-edge` and
+    # shared by every project's docker-compose plus deploy/edge/. This
+    # project doesn't own the network's lifecycle, so it's marked external -
+    # `docker compose down` here won't delete it.
+    external: true
+
+volumes:
+  mssql-data:
