@@ -26,6 +26,14 @@
 	# 	}
 	# }
 
+	# GitHub's webhook POSTs land here. `handle` (not handle_path) keeps the
+	# full path, since the `webhook` binary itself expects /hooks/<project-id>
+	# - see deploy/edge/webhook/. It runs on the host, not in a container, so
+	# this reaches it via the Docker host gateway rather than a service name.
+	handle /hooks/* {
+		reverse_proxy host.docker.internal:9000
+	}
+
 	handle {
 		respond "Not found" 404
 	}

@@ -10,6 +10,13 @@ services:
     restart: unless-stopped
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    # Lets the container resolve host.docker.internal to the Docker host's
+    # own IP, so it can reach the webhook listener running there (see
+    # webhook/webhook.service - it runs on the host, not in a container).
+    # host-gateway is a special value Docker Engine resolves itself; this
+    # works on Linux since Docker 20.10, no manual IP needed.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - public-edge
 

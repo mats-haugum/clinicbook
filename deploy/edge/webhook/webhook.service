@@ -1,0 +1,26 @@
+[Unit]
+Description=GitHub webhook listener (multi-project auto-deploy)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+# webhook binds to loopback only - ufw's default-deny-incoming already
+# blocks it from the outside world, but there's no reason to widen that.
+# The edge Caddy container reaches it via the Docker host gateway instead
+# (see deploy/edge/docker-compose.yml's extra_hosts on the caddy service).
+ExecStart=/usr/bin/webhook -hooks /opt/webhook/hooks.json -verbose -ip 127.0.0.1 -port 9000
+Restart=on-failure
+EnvironmentFile=/opt/webhook/webhook.env
+
+# Dedicated low-privilege user, not root. It must be a member of the
+# `docker` group to run `docker compose` - note that group membership is
+# itself effectively root-equivalent on this host (anyone who can reach the
+# Docker daemon can mount the host filesystem into a container), which is
+# the same trade-off a Docker-socket-mounted container would carry. Signature
+# verification in hooks.json is what stands between the outside world and
+# this user, so keep the per-project secrets in webhook.env unguessable.
+User=deploy
+Group=deploy
+
+[Install]
+WantedBy=multi-user.target
