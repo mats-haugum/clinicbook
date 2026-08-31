@@ -153,9 +153,20 @@ builder.Services.AddRateLimiter(options =>
 // than just "is the process running". The Caddyfile already proxies /health
 // to this container (deploy/Caddyfile) - this is what makes that route
 // actually answer instead of 404ing.
+//
+// Both connection strings are resolved from the service provider at check
+// time rather than read into a local up here, for the same reason the rate
+// limiter does it (see above): a value read from builder.Configuration
+// during startup freezes before a test host's ConfigureAppConfiguration
+// override is layered on, so the health check would keep probing the
+// production database name while the app itself talks to the test one.
 builder.Services.AddHealthChecks()
-    .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!, name: "mssql")
-    .AddRedis(builder.Configuration.GetConnectionString("Redis")!, name: "redis");
+    .AddSqlServer(
+        sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")!,
+        name: "mssql")
+    .AddRedis(
+        sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("Redis")!,
+        name: "redis");
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

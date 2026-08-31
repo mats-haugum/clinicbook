@@ -39,11 +39,20 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         // that specifically want the real limits enforced (see
         // RateLimiting/AuthRateLimitingTests.cs) use their own factory
         // subclass that layers the real values back on top of this.
+        //
+        // DefaultConnection is overridden here as well as on the DbContext
+        // above, because the /health check reads the connection string from
+        // configuration rather than from the DbContext. Without this it would
+        // probe the real ClinicBookingDB - a database that exists on a
+        // developer machine that has run `dotnet ef database update`, but
+        // never on a clean CI runner, making the health test pass or fail
+        // depending on local state rather than on the code.
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
                 ["RateLimiting:ApiPermitLimit"] = "1000000",
                 ["RateLimiting:AuthPermitLimit"] = "1000000",
+                ["ConnectionStrings:DefaultConnection"] = TestConnectionString,
             }));
 
         builder.UseEnvironment("Development");
