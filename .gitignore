@@ -1,0 +1,14 @@
+# Build output is ignored by the per-project files instead, so each stays the
+# standard template for its ecosystem: Backend/.gitignore (dotnet new gitignore)
+# covers bin/ and obj/, Frontend/.gitignore (Vite) covers node_modules and dist.
+
+# AI assistant working files - not part of the project itself
+.claude
+CLAUDE.md
+
+# Secrets. Templates are committed as deploy/.env.example and
+# deploy/edge/.env.example; the real files never are.
+.env
+
+# Database backups written on the server by deploy/backup.sh
+deploy/backups/

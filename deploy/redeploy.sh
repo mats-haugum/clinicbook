@@ -7,7 +7,8 @@ set -euo pipefail
 # EDIT THIS to wherever this repo is actually checked out on the server.
 REPO_DIR="/opt/apps/ep-2-Delvjn"
 
-# EDIT THIS if you deploy from a different branch than main.
+# Must match the branch the webhook gates on in deploy/edge/webhook/hooks.json
+# (refs/heads/main) and the branch CI runs against in .github/workflows/ci.yml.
 BRANCH="main"
 
 cd "$REPO_DIR"
