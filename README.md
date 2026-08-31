@@ -3,266 +3,196 @@
 ![.NET](https://img.shields.io/badge/.NET_10-512BD4?style=flat&logo=dotnet&logoColor=white)
 ![React](https://img.shields.io/badge/React_19-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
-![SQL Server](https://img.shields.io/badge/SQL_Server-CC2927?style=flat&logo=microsoftsqlserver&logoColor=white)
+![SQL Server](https://img.shields.io/badge/SQL_Server_2022-CC2927?style=flat&logo=microsoftsqlserver&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis_7-DC382D?style=flat&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
+![Tests](https://img.shields.io/badge/integration_tests-141_passing-brightgreen?style=flat)
 
-> **Exam Project — Backend Development, Year 2**  
-> Noroff School of Technology and Digital Media
+**Live demo: [app.matshaugum.com/projects/clinicbook](https://app.matshaugum.com/projects/clinicbook)** — self-hosted on my own hardware behind a Cloudflare Tunnel. The database resets itself to a clean seeded state every hour, so feel free to book, register, and explore.
 
----
-
-### About
-
-ClinicBook is a full-stack web application that allows patients to book appointments at medical clinics — no account required. Patients can book as a guest, or register to manage their appointments online. Registered patients can view, reschedule, and cancel their bookings. An admin panel allows clinic staff to manage doctors, clinics, specialities, and appointment categories.
-
-The system is built as a REST API (ASP.NET Core) backed by SQL Server via Entity Framework Core, with a React + TypeScript frontend. Authentication uses JWT access tokens with refresh token rotation.
+ClinicBook is a full-stack appointment booking system for a group of medical clinics. Patients can book as a guest with no account, or register to view, reschedule, and cancel their bookings; an admin panel manages doctors, clinics, specialities, and categories. It started as a school back-end project and grew into a production deployment: integration-tested over real HTTP and SQL Server, containerized, auto-deployed on every push, and served from a home server with **zero open inbound ports**.
 
 ---
 
-### Tech Stack
+## Screenshots
+
+<!-- Drop PNGs into docs/screenshots/ with these filenames and they will appear automatically. -->
+
+| Booking with live availability | Doctor search |
+|---|---|
+| ![Booking page with 30-minute slot picker](docs/screenshots/booking.png) | ![Doctor search with debounced live results](docs/screenshots/search.png) |
+
+| Patient dashboard | Admin dashboard |
+|---|---|
+| ![Patient appointment list with reschedule/cancel](docs/screenshots/dashboard.png) | ![Admin CRUD dashboard](docs/screenshots/admin.png) |
+
+---
+
+## What makes this more than a CRUD app
+
+### Security-focused authentication
+Passwords are hashed with **Argon2id** (64 MB memory cost, 3 iterations, per-user random salt) and verified with a constant-time comparison — see [`AuthService.cs`](Backend/ClinicAppointmentBookingSystem/Services/Auth/AuthService.cs). Sessions use short-lived JWTs plus **refresh-token rotation** — the full token lifecycle is diagrammed in [Authentication flow](#authentication-flow-jwt--refresh-token-rotation) below. Login and registration sit behind a tight 5 requests/minute rate limit.
+
+### Guest → registered account upgrade
+Guests book appointments with no account. If they later register with the same email, the existing guest row is **upgraded in place** rather than duplicated — the patient ID stays stable, so every appointment they booked as a guest instantly belongs to their new account. No orphaned data, no manual migration. See [`AuthService.RegisterAsync`](Backend/ClinicAppointmentBookingSystem/Services/Auth/AuthService.cs).
+
+### Real booking-domain validation
+Conflict detection uses interval-overlap logic (`start < otherEnd && end > otherStart`) checked against **both** the doctor's and the patient's calendars — a person can only be in one place at a time, regardless of clinic. The same formula drives the frontend's 30-minute availability grid, so the UI and the validation can never disagree. See [`AppointmentService.cs`](Backend/ClinicAppointmentBookingSystem/Services/Appointments/AppointmentService.cs).
+
+### Soft-delete architecture
+Nothing is ever hard-deleted through the API. Entities implement [`ISoftDeletable`](Backend/ClinicAppointmentBookingSystem/Models/Entities/ISoftDeletable.cs); an override of `SaveChangesAsync` in [`ClinicBookingDbContext`](Backend/ClinicAppointmentBookingSystem/Data/ClinicBookingDbContext.cs) intercepts every delete and turns it into an `UPDATE ... IsDeleted = 1`, while **global query filters** make deleted rows invisible to all normal queries and `DeleteBehavior.Restrict` keeps foreign keys intact.
+
+### Production API hygiene
+- **Config-driven rate limiting** — a global 100 req/min per-IP cap composed with a named 5/min policy for auth endpoints, using `GlobalLimiter` specifically because route-convention policies silently override per-action `[EnableRateLimiting]` attributes in ASP.NET Core. That was a real bug in this codebase, caught by the integration tests; the fix and the reasoning are documented in [`Program.cs`](Backend/ClinicAppointmentBookingSystem/Program.cs).
+- **Output caching** on doctor search (30 s, varying by query string).
+- **Health checks** at `/health` doing live connectivity checks against SQL Server *and* Redis.
+- **RFC 7807 ProblemDetails** error responses in production, Swagger UI with full XML doc comments in development.
+
+### 141 integration tests over real infrastructure
+No mocks: every test runs the full HTTP pipeline via `WebApplicationFactory` against a real SQL Server, with the test database **wiped and re-migrated before every single test** — which also continuously proves the migration chain applies cleanly from scratch. Dedicated factory subclasses test rate limiting with production limits and output caching without an `Authorization` header (which would silently disable the cache). See [`Backend/ClinicAppointmentBookingSystem.IntegrationTests`](Backend/ClinicAppointmentBookingSystem.IntegrationTests).
+
+### Self-hosted with zero open inbound ports
+The live demo runs on my own Ubuntu server. A **Cloudflare Tunnel** makes an outbound-only connection to Cloudflare's edge, so the router forwards nothing and the home IP is never in DNS. A shared edge Caddy routes multiple projects by URL path; pushes to GitHub trigger an **HMAC-verified webhook** that pulls and rebuilds the stack; the database gets nightly compressed, checksummed backups and an hourly [`--reset-demo`](Backend/ClinicAppointmentBookingSystem/Data/DemoResetService.cs) that restores the pristine seed state — skipping entirely (dirty-detection) if nobody touched anything.
+
+---
+
+## Authentication flow: JWT + refresh token rotation
+
+Two token types with deliberately different jobs:
+
+| | Access token (JWT) | Refresh token |
+|---|---|---|
+| **What it is** | Signed JWT carrying `sub`, `email`, name, and a short `role` claim | 64 cryptographically random bytes ([`RandomNumberGenerator`](Backend/ClinicAppointmentBookingSystem/Services/Auth/AuthService.cs)), stored server-side per patient |
+| **Lifetime** | 60 minutes | 7 days |
+| **Sent** | On every API call, as an `Authorization: Bearer` header | Only to `POST /auth/refresh` |
+| **If stolen** | Expires within the hour; can't be renewed by itself | Revoked on first legitimate use — see rotation below |
+
+```mermaid
+sequenceDiagram
+    participant B as Browser (axios)
+    participant A as API
+    participant DB as SQL Server
+
+    B->>A: POST /auth/login (email + password)
+    A->>DB: verify Argon2id hash (constant-time)
+    A-->>B: access JWT (60 min) + refresh token (7 days)
+    Note over B: both stored, Bearer header<br/>attached by request interceptor
+
+    B->>A: GET /appointments/my (Bearer expired)
+    A-->>B: 401 Unauthorized
+    Note over B: response interceptor catches the 401<br/>(_retry flag prevents loops)
+    B->>A: POST /auth/refresh (refresh token)
+    A->>DB: validate: exists, not expired,<br/>not revoked, patient not deleted
+    A->>DB: revoke old token (rotation)
+    A-->>B: NEW access + NEW refresh pair
+    B->>A: GET /appointments/my (new Bearer) — retried automatically
+    A-->>B: 200 OK
+```
+
+**How the rotation protects the account:** every call to `/auth/refresh` marks the presented token `IsRevoked` before issuing a new pair. A stolen refresh token therefore works at most once — and the moment the legitimate user's client refreshes, the stolen copy is dead; if the thief refreshes first, the legitimate client's next refresh fails, forcing a re-login instead of silently sharing the session.
+
+**On the frontend** ([`api/client.ts`](Frontend/src/api/client.ts)): a request interceptor attaches the Bearer header; a response interceptor catches 401s, refreshes using a *raw* axios call (so the refresh itself can't recursively trigger the interceptor), swaps in the rotated pair, and transparently retries the original request — the user never notices the token expired. On refresh failure it clears both tokens and redirects to login. [`AuthContext`](Frontend/src/context/AuthContext.tsx) additionally discards expired tokens at page load (covering *return-after-absence*, while the interceptor covers *mid-session* expiry) and decodes the JWT payload client-side for UI state.
+
+Admin sessions deliberately differ: an 8-hour JWT with `role: Admin` and **no refresh token** — a shorter-lived, higher-privilege session that simply ends.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TD
+    client([Browser]) --> cf[Cloudflare edge<br/>TLS · CDN · WAF]
+    cf --> tunnel[cloudflared tunnel<br/>outbound-only connection]
+    tunnel --> edge[edge Caddy<br/>routes by path, strips /projects/clinicbook]
+    edge --> web[app Caddy<br/>React SPA + /api/* proxy]
+    web --> api[ASP.NET Core API<br/>Kestrel :8080]
+    subgraph internal [internal Docker network — no internet access]
+        db[(SQL Server 2022)]
+        cache[(Redis 7)]
+    end
+    api --> db
+    api --> cache
+    gh[GitHub push] -.HMAC-signed webhook.-> edge
+```
+
+```
+├── Backend/
+│   ├── ClinicAppointmentBookingSystem/         ASP.NET Core API (controllers → services → EF Core)
+│   └── ClinicAppointmentBookingSystem.IntegrationTests/
+├── Frontend/                                   React 19 + TypeScript + Vite + Tailwind v4
+├── deploy/                                     Docker Compose stack, Caddy, backups, runbooks
+│   └── edge/                                   shared reverse proxy + tunnel + webhook auto-deploy
+└── .github/workflows/ci.yml                    CI: build + test with MSSQL & Redis service containers
+```
+
+---
+
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS |
-| Backend | ASP.NET Core (.NET 10), C# |
-| Database | SQL Server 2022 (Docker), Entity Framework Core |
-| Authentication | JWT (access + refresh tokens), Argon2id password hashing |
-| API Docs | Swagger / OpenAPI at `/doc` |
-| Testing | xUnit, FluentAssertions, ASP.NET Core integration tests |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router 7, axios (with automatic token-refresh interceptor) |
+| Backend | ASP.NET Core (.NET 10), Entity Framework Core 10 (code-first, 4 migrations), xUnit + FluentAssertions |
+| Auth | JWT access tokens + rotating refresh tokens, Argon2id (Konscious.Security.Cryptography) |
+| Data | SQL Server 2022, Redis 7 (distributed cache), `AspNetCore.HealthChecks.SqlServer` / `.Redis` |
+| Infra | Docker Compose, Caddy 2, Cloudflare Tunnel, adnanh/webhook, GitHub Actions |
 
 ---
 
-### LIBRARIES
+## API overview
 
-#### Backend (`Backend/ClinicAppointmentBookingSystem`)
+31 endpoints across 7 controllers, plus `/health`. Full interactive documentation via Swagger at `http://localhost:5291/doc` (development only).
 
-| Package | Version | Purpose |
+| Route group | Auth | Purpose |
 |---|---|---|
-| `Microsoft.EntityFrameworkCore.SqlServer` | 10.x | EF Core provider for SQL Server — used for all database access and migrations |
-| `Microsoft.EntityFrameworkCore.Design` | 10.x | Design-time tools required to create and apply EF Core migrations |
-| `Microsoft.EntityFrameworkCore.Tools` | 10.x | CLI tools for running `dotnet ef` commands |
-| `Microsoft.AspNetCore.Authentication.JwtBearer` | 10.x | Validates incoming JWT tokens on protected endpoints |
-| `Konscious.Security.Cryptography.Argon2` | 1.3.1 | Argon2id password hashing — used for both patient and admin password storage |
-| `Swashbuckle.AspNetCore` | 6.x | Generates Swagger / OpenAPI documentation, served at `/doc` |
-
-#### Integration Tests (`Backend/ClinicAppointmentBookingSystem.IntegrationTests`)
-
-| Package | Version | Purpose |
-|---|---|---|
-| `xunit` | 2.9.3 | Test framework |
-| `xunit.runner.visualstudio` | 3.1.4 | Runs xUnit tests inside Visual Studio and `dotnet test` |
-| `Microsoft.NET.Test.Sdk` | 17.14.1 | MSBuild integration required to discover and run tests |
-| `Microsoft.AspNetCore.Mvc.Testing` | 10.x | Spins up the full API in-process for integration tests without needing a running server |
-| `Microsoft.EntityFrameworkCore.InMemory` | 10.x | In-memory EF Core provider used in test setup |
-| `FluentAssertions` | 8.9.0 | Readable assertion syntax for test expectations (e.g. `.Should().Be(...)`) |
-| `coverlet.collector` | 6.0.4 | Code coverage collection during test runs |
-
-#### Frontend (`Frontend`)
-
-| Package | Version | Purpose |
-|---|---|---|
-| `react` | 19.x | UI library |
-| `react-dom` | 19.x | React renderer for the browser |
-| `react-router-dom` | 7.x | Client-side routing (`/book`, `/search`, `/login`, etc.) |
-| `axios` | 1.x | HTTP client for all API calls |
-| `tailwindcss` | 4.x | Utility-first CSS framework for styling |
-| `vite` | 8.x | Build tool and dev server |
-| `typescript` | 6.x | Static typing for JavaScript |
+| `/auth` | anonymous | Patient register (guest upgrade), login, token refresh, guest prefill |
+| `/admin/auth` | anonymous | Admin login |
+| `/appointments` | mixed | Guest & patient booking, my-appointments, reschedule, cancel (Patient role) |
+| `/doctors` | mixed | List, detail, **availability slots**, cached **search**; CRUD (Admin role) |
+| `/clinics`, `/specialities`, `/appointment-categories` | mixed | Public reads; CRUD (Admin role) |
+| `/health` | anonymous | Live SQL Server + Redis connectivity check |
 
 ---
 
-### HOW TO RUN
+## Running locally
 
-#### Prerequisites
-
-Make sure the following are installed before continuing:
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) — required to build and run the backend
-- [Node.js 20+](https://nodejs.org/) — required to run the frontend
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — required to run SQL Server
-
-You can verify your installations with:
+Prerequisites: Docker, .NET 10 SDK, Node.js, `dotnet-ef` tool.
 
 ```bash
-dotnet --version   # should print 10.x.x
-node --version     # should print v20.x.x or higher
-docker --version   # should print Docker version ...
-```
+# 1. Infrastructure (password must be Admin@123 - appsettings and tests expect it)
+docker run -d --name clinicbook-mssql -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=Admin@123" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+docker run -d --name clinicbook-redis -p 6379:6379 redis:7-alpine
 
----
-
-#### 1. Start the database
-
-The application uses SQL Server 2022 running inside a Docker container.
-
-```bash
-docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Admin@123" \
-  -p 1433:1433 --name sqlserver \
-  -d mcr.microsoft.com/mssql/server:2022-latest
-```
-
-This downloads the image (first run only), creates a container named `sqlserver`, and starts it on port `1433`.
-
-> **Already have the container?** If you have run this before, start the existing container instead:
-> ```bash
-> docker start sqlserver
-> ```
-
-Wait a few seconds for SQL Server to finish starting up before moving to the next step.
-
----
-
-#### 2. Run the backend
-
-Open a terminal in the repository root and run:
-
-```bash
+# 2. Database schema + seed data (migrations are applied explicitly, not on startup)
 cd Backend/ClinicAppointmentBookingSystem
+dotnet ef database update
+
+# 3. API  → http://localhost:5291  (Swagger at /doc)
 dotnet run
+
+# 4. Frontend → http://localhost:5173   (new terminal)
+cd Frontend && npm install && npm run dev
+
+# 5. Tests (needs the containers from step 1 running)
+dotnet test Backend/ClinicAppointmentBookingSystem.IntegrationTests
 ```
 
-The API will start at **`http://localhost:5000`**.
-
-On first run, EF Core automatically applies all database migrations and seeds the initial data (clinics, doctors, specialities, appointment categories).
-
-A default admin account is also created automatically:
-
-| Field | Value |
-|---|---|
-| Email | `admin@clinicbook.com` |
-| Password | `Admin@123` |
-
-Interactive API documentation (Swagger UI) is available at **`http://localhost:5000/doc`**.
+Full walkthrough: [deploy/how-to-run-locally-for-development.md](deploy/how-to-run-locally-for-development.md)
 
 ---
 
-#### 3. Run the frontend
+## Deployment
 
-Open a **second terminal** in the repository root and run:
-
-```bash
-cd Frontend
-npm install
-npm run dev
-```
-
-`npm install` only needs to be run once (or after pulling changes that update `package.json`).
-
-The frontend will start at **`http://localhost:5173`**.
-
-Open that URL in your browser. The appointment booking page loads at `/`, the doctor search at `/search`, and the admin panel at `/admin`.
+Production runs as a Docker Compose stack (Caddy + API + SQL Server Express + Redis) behind a shared edge proxy and Cloudflare Tunnel, documented as reproducible runbooks: [deploy/README.md](deploy/README.md) covers the app stack, hardening, backups, and the demo reset; [deploy/edge/README.md](deploy/edge/README.md) covers the shared tunnel, path-based multi-project routing, and webhook auto-deploy. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the full integration suite against MSSQL and Redis service containers on every push; deployment itself is triggered by a signed GitHub webhook, independent of CI.
 
 ---
 
-#### 4. Run the integration tests (optional)
+## A note on secrets
 
-The integration tests spin up the full API in-process and run against a dedicated test database (`ClinicBookingDB_Test`). The database is created and wiped automatically — no manual setup is needed, but **the SQL Server container from step 1 must be running**.
-
-```bash
-cd Backend/ClinicAppointmentBookingSystem.IntegrationTests
-dotnet test
-```
-
-To see per-test results in the terminal, add `--logger "console;verbosity=normal"`.
+The values committed in `appsettings.json` (JWT signing key, seed passwords, `sa` password) are **development-only placeholders** so the project runs out of the box. Production overrides all of them through environment variables in [deploy/docker-compose.yml](deploy/docker-compose.yml), sourced from a git-ignored `.env`.
 
 ---
 
-### ENDPOINTS
+## About this project
 
-The REST API base URL is `http://localhost:5000` (configurable). Full interactive documentation is available at `/doc` (Swagger UI).
-
-Endpoints marked **🔒 Patient** require a `Bearer` JWT token with role `Patient` in the `Authorization` header.  
-Endpoints marked **🔒 Admin** require a `Bearer` JWT token with role `Admin`.  
-All other endpoints are public.
-
----
-
-#### Authentication — `/auth`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/auth/register` | Public | Registers a new patient account. Returns a JWT token and patient info. Returns `409` if the email is already registered. |
-| POST | `/auth/login` | Public | Logs in an existing patient. Returns a JWT access token and a refresh token. Returns `401` on invalid credentials. |
-| POST | `/auth/refresh` | Public | Issues a new access token and refresh token using a valid refresh token (token rotation). Returns `401` if the token is invalid or expired. |
-| GET | `/auth/guest-prefill?email=` | Public | Returns non-sensitive PII (name, birthdate, gender) for a guest booking, used to pre-fill the registration form. Returns `404` if no guest booking exists for that email. |
-
----
-
-#### Admin Authentication — `/admin/auth`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/admin/auth/login` | Public | Logs in an admin user. Returns a JWT with role `Admin`. No refresh token is issued — admins must re-authenticate when the token expires. |
-
----
-
-#### Appointments — `/appointments`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/appointments/book/guest` | Public | Books an appointment as a guest user. Stores non-sensitive PII only. Returns `409` if the time slot conflicts with an existing appointment. |
-| POST | `/appointments/book` | 🔒 Patient | Books an appointment as a registered patient. Returns `409` on time slot conflict. |
-| GET | `/appointments/my` | 🔒 Patient | Returns all appointments for the currently logged-in patient. |
-| PUT | `/appointments/{id}/reschedule` | 🔒 Patient | Reschedules an existing appointment to a new date/time. Returns `403` if the appointment belongs to another patient. Returns `409` on time slot conflict. |
-| DELETE | `/appointments/{id}/cancel` | 🔒 Patient | Cancels (deletes) an existing appointment. Returns `403` if the appointment belongs to another patient. |
-
----
-
-#### Doctors — `/doctors`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/doctors` | Public | Returns all doctors. |
-| GET | `/doctors/{id}` | Public | Returns a single doctor by ID. |
-| GET | `/doctors/search?name=` | Public | Searches for doctors by first or last name. Returns each match with full name, clinic name, and speciality. Returns `404` if no matches are found. |
-| GET | `/doctors/{id}/availability?date=` | Public | Returns 30-minute availability slots for a doctor on a given date (08:00–17:00). Each slot has a start time, end time, and an availability flag. |
-| POST | `/doctors` | 🔒 Admin | Creates a new doctor and assigns them to one or more clinics. |
-| PUT | `/doctors/{id}` | 🔒 Admin | Updates a doctor's name and speciality. |
-| DELETE | `/doctors/{id}` | 🔒 Admin | Deletes a doctor. Returns `409` if the doctor has existing appointments. |
-
----
-
-#### Clinics — `/clinics`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/clinics` | Public | Returns all clinics. |
-| GET | `/clinics/{id}` | Public | Returns a single clinic by ID. |
-| POST | `/clinics` | 🔒 Admin | Creates a new clinic. Returns `409` if a clinic with that name already exists. |
-| PUT | `/clinics/{id}` | 🔒 Admin | Updates a clinic's details. Returns `409` on duplicate name. |
-| DELETE | `/clinics/{id}` | 🔒 Admin | Deletes a clinic. Returns `409` if the clinic has existing appointments. |
-
----
-
-#### Specialities — `/specialities`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/specialities` | Public | Returns all specialities. |
-| GET | `/specialities/{id}` | Public | Returns a single speciality by ID. |
-| POST | `/specialities` | 🔒 Admin | Creates a new speciality. Returns `409` if a speciality with that name already exists. |
-| PUT | `/specialities/{id}` | 🔒 Admin | Updates a speciality's name. Returns `409` on duplicate name. |
-| DELETE | `/specialities/{id}` | 🔒 Admin | Deletes a speciality. Returns `409` if doctors are still assigned to it. |
-
----
-
-#### Appointment Categories — `/appointment-categories`
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/appointment-categories` | Public | Returns all appointment categories. |
-| GET | `/appointment-categories/{id}` | Public | Returns a single category by ID. |
-| POST | `/appointment-categories` | 🔒 Admin | Creates a new appointment category. Returns `409` if a category with that name already exists. |
-| PUT | `/appointment-categories/{id}` | 🔒 Admin | Updates a category's name. Returns `409` on duplicate name. |
-| DELETE | `/appointment-categories/{id}` | 🔒 Admin | Deletes a category. Returns `409` if appointments are still assigned to it. |
-
----
-
-### REFERENCES
-
-- https://developer.mozilla.org/
-
-- https://react.dev/
-
-- https://learn.microsoft.com/en-us/dotnet/
-
-- AI for learning and generating code i did not know how to do myself (Claude, ChatGPT)
+ClinicBook began as my Year 2 back-end exam project at Noroff School of Technology and Digital Media — that version is preserved as submitted on the `main` branch. This branch is where I kept going: hardening the API, expanding the test suite, and building the self-hosting pipeline that serves the live demo. Developed with the assistance of Claude (Anthropic) as a pair-programming and learning tool; every concept in this codebase is one I can explain, because understanding it was the point.
