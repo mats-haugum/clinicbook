@@ -4,6 +4,7 @@ using ClinicAppointmentBookingSystem.Services.Admin;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -28,6 +29,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddDbContext<ClinicBookingDbContext>(options =>
                 options.UseSqlServer(TestConnectionString));
         });
+
+        // Program.cs reads its rate limits from the RateLimiting section, so
+        // this override (added AFTER appsettings.json - later config
+        // providers win) raises them far past anything a functional test
+        // could hit. Ordinary CRUD/auth tests aren't testing rate limiting
+        // and shouldn't have to dodge production-tuned limits just because
+        // they call an endpoint like /auth/register once per test. Tests
+        // that specifically want the real limits enforced (see
+        // RateLimiting/AuthRateLimitingTests.cs) use their own factory
+        // subclass that layers the real values back on top of this.
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["RateLimiting:ApiPermitLimit"] = "1000000",
+                ["RateLimiting:AuthPermitLimit"] = "1000000",
+            }));
 
         builder.UseEnvironment("Development");
     }

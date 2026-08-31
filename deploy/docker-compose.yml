@@ -29,7 +29,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-      ConnectionStrings__Default: "Server=db;Database=${DB_NAME};User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      # Must be DefaultConnection, not Default - that's the key name
+      # Program.cs actually reads (matches appsettings.json).
+      ConnectionStrings__DefaultConnection: "Server=db;Database=${DB_NAME};User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
       ConnectionStrings__Redis: "cache:6379"
     depends_on:
       db:

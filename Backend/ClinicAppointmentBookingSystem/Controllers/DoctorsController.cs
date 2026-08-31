@@ -2,6 +2,7 @@ using ClinicAppointmentBookingSystem.Models.DTOs.Doctors;
 using ClinicAppointmentBookingSystem.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace ClinicAppointmentBookingSystem.Controllers;
 
@@ -60,6 +61,10 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <response code="400">Search term is empty.</response>
     /// <response code="404">No doctors found matching the search term.</response>
     [HttpGet("search")]
+    // Caches the response server-side per distinct ?name= value for 30s (the
+    // "short" policy from Program.cs) - search results rarely change second
+    // to second, so repeated identical searches skip the database entirely.
+    [OutputCache(PolicyName = "short")]
     [ProducesResponseType(typeof(List<DoctorSearchResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

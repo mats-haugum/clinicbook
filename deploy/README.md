@@ -154,6 +154,26 @@ docker compose exec db /opt/mssql-tools18/bin/sqlcmd \
   -Q "RESTORE DATABASE [AppDb_test] FROM DISK = N'/backups/AppDb-20260820-030000.bak' WITH MOVE 'AppDb' TO '/var/opt/mssql/data/AppDb_test.mdf', MOVE 'AppDb_log' TO '/var/opt/mssql/data/AppDb_test.ldf', RECOVERY"
 ```
 
+## Demo reset (optional)
+
+If this deployment is used as a live demo, patients and appointments
+accumulate with every visitor who books through it. `--reset-demo` clears
+that activity and puts the catalog data (clinics, doctors, specialities,
+categories) back to its seeded state - see
+`Backend/ClinicAppointmentBookingSystem/Data/DemoResetService.cs` for exactly
+what it touches. It's a no-op (and says so in the log) if nothing has changed
+since the last reset, so running it hourly costs nothing on a quiet night.
+
+```bash
+crontab -e
+```
+
+Add:
+
+```
+0 * * * * cd /full/path/to/deploy && docker compose exec -T api dotnet ClinicAppointmentBookingSystem.dll --reset-demo >> /var/log/clinicbook-demo-reset.log 2>&1
+```
+
 ## 7. Harden the host
 
 Since the tunnel needs no inbound ports, close everything:

@@ -1,6 +1,7 @@
 using ClinicAppointmentBookingSystem.Models.DTOs.Auth;
 using ClinicAppointmentBookingSystem.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ClinicAppointmentBookingSystem.Controllers;
 
@@ -26,6 +27,10 @@ public class AuthController(IAuthService authService) : ControllerBase
     /// <response code="400">Validation failed — missing or invalid fields.</response>
     /// <response code="409">An account with this email already exists.</response>
     [HttpPost("register")]
+    // Tighter rate limit than the general "api" policy (registered globally
+    // in Program.cs) - this endpoint is worth throttling harder since it's a
+    // realistic target for automated account-creation abuse.
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -104,6 +109,9 @@ public class AuthController(IAuthService authService) : ControllerBase
     /// <response code="400">Validation failed — missing or invalid fields.</response>
     /// <response code="401">Invalid email or password.</response>
     [HttpPost("login")]
+    // Login is the classic brute-force target - 5 attempts/minute per IP,
+    // instead of the general "api" policy's 100/minute.
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
