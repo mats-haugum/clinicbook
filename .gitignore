@@ -8,7 +8,14 @@ CLAUDE.md
 
 # Secrets. Templates are committed as deploy/.env.example and
 # deploy/edge/.env.example; the real files never are.
+# A bare `.env` pattern matches only files named exactly that, so the
+# webhook's env file needs its own entry - otherwise it sits untracked and
+# a `git add -A` sweeps the deploy secret into a commit.
 .env
+webhook.env
 
 # Database backups written on the server by deploy/backup.sh
 deploy/backups/
+
+# Deploy record appended by deploy/redeploy.sh on the server.
+deploy/deploy.log
