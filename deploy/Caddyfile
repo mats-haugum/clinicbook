@@ -25,16 +25,25 @@
 
 	handle {
 		root * /srv
-		try_files {path} /index.html
-		file_server
+
+		# The no-cache header below must be applied AFTER try_files, so it has
+		# to live inside an explicit `route` - directives there run in written
+		# order, whereas Caddy otherwise sorts `header` ahead of `handle` and
+		# it would only ever see the original request path. try_files rewrites
+		# every unmatched SPA route to /index.html, so matching the rewritten
+		# path is what catches "/" and deep links like /doctors; a top-level
+		# `header /index.html` matches only a literal request for /index.html.
+		route {
+			try_files {path} /index.html
+			header /index.html Cache-Control "no-cache"
+			file_server
+		}
 	}
 
-	# Hashed build assets never change - cache them hard.
+	# Hashed build assets never change - cache them hard. These are real files,
+	# so try_files never rewrites them and matching the request path is correct.
 	@hashed path /assets/* /static/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
-
-	# The HTML entrypoint must always be revalidated or users get a stale app shell.
-	header /index.html Cache-Control "no-cache"
 
 	header {
 		-Server
