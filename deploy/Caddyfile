@@ -9,7 +9,11 @@
 :80 {
 	encode zstd gzip
 
-	handle /api/* {
+	# handle_path (not handle) strips the /api prefix before forwarding: the
+	# controllers are routed at the root ([Route("doctors")], not
+	# [Route("api/doctors")]), so the API never sees /api itself. The prefix
+	# exists only to separate API calls from SPA routes in this Caddyfile.
+	handle_path /api/* {
 		reverse_proxy api:8080 {
 			header_up X-Forwarded-Proto https
 		}
