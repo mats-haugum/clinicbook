@@ -4,14 +4,18 @@ After=network.target docker.service
 Requires=docker.service
 
 [Service]
-# webhook binds to loopback only - ufw's default-deny-incoming already
-# blocks it from the outside world, but there's no reason to widen that.
-# The edge Caddy container reaches it via the Docker host gateway instead
-# (see deploy/edge/docker-compose.yml's extra_hosts on the caddy service).
+# Binds the Docker bridge gateway, NOT 127.0.0.1. The edge Caddy container
+# reaches the host through host.docker.internal, which Docker resolves to
+# the default bridge gateway (172.17.0.1) - a loopback-only listener is
+# unreachable from there and every delivery comes back 502. This address
+# exists only on the host's docker0 interface, so it is not reachable from
+# the LAN and does not depend on the firewall being configured correctly.
+# Change it if the Docker daemon is set to a different bridge subnet:
+#   docker exec <a container> getent hosts host.docker.internal
 # -template is REQUIRED: without it, webhook treats the {{ getenv "..." }}
 # expressions in hooks.json as literal text, so signature verification
 # compares against the template string itself and every delivery fails.
-ExecStart=/usr/bin/webhook -hooks /opt/webhook/hooks.json -template -verbose -ip 127.0.0.1 -port 9000
+ExecStart=/usr/bin/webhook -hooks /opt/webhook/hooks.json -template -verbose -ip 172.17.0.1 -port 9000
 Restart=on-failure
 EnvironmentFile=/opt/webhook/webhook.env
 

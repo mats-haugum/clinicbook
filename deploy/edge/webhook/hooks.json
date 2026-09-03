@@ -1,15 +1,15 @@
 [
   {
     "id": "clinicbook",
-    "execute-command": "{{ getenv \"CLINICBOOK_REPO_DIR\" }}/deploy/redeploy.sh",
-    "command-working-directory": "{{ getenv \"CLINICBOOK_REPO_DIR\" }}",
+    "execute-command": "{{ getenv `CLINICBOOK_REPO_DIR` }}/deploy/redeploy.sh",
+    "command-working-directory": "{{ getenv `CLINICBOOK_REPO_DIR` }}",
     "response-message": "deploying clinicbook",
     "trigger-rule": {
       "and": [
         {
           "match": {
             "type": "payload-hash-sha256",
-            "secret": "{{ getenv \"WEBHOOK_SECRET_CLINICBOOK\" }}",
+            "secret": "{{ getenv `WEBHOOK_SECRET_CLINICBOOK` }}",
             "parameter": {
               "source": "header",
               "name": "X-Hub-Signature-256"
