@@ -1,8 +1,8 @@
 [
   {
     "id": "clinicbook",
-    "execute-command": "/opt/apps/ep-2-Delvjn/deploy/redeploy.sh",
-    "command-working-directory": "/opt/apps/ep-2-Delvjn",
+    "execute-command": "{{ getenv \"CLINICBOOK_REPO_DIR\" }}/deploy/redeploy.sh",
+    "command-working-directory": "{{ getenv \"CLINICBOOK_REPO_DIR\" }}",
     "response-message": "deploying clinicbook",
     "trigger-rule": {
       "and": [

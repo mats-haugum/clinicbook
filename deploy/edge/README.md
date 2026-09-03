@@ -57,39 +57,49 @@ GitHub can notify the server the instant you push, instead of the server
 polling. One listener (the `webhook` binary by adnanh, packaged for
 Debian/Ubuntu) serves every project, each at its own URL path
 (`/hooks/<project-id>`), each with its own secret. It runs **on the host**,
-not in a container - see `webhook/webhook.service` for why.
+not in a container - see `webhook/webhook.service.example` for why.
+
+Server-specific values (checkout path, service account, log location) are
+deliberately kept out of this repo, which is public. They live in
+`/opt/webhook/webhook.env` and in the copy of the unit file under
+`/etc/systemd/system/`; the versions committed here are `.example` templates.
 
 ### 1. Install and configure
+
+Pick the account the service will run as first. It has to own this checkout
+(`redeploy.sh` does a `git reset --hard` and a Docker build inside it) and be
+in the `docker` group. The account that already owns the clone is the least
+fuss; a dedicated `deploy` user is tighter, but then the checkout has to live
+somewhere that user can traverse and write, which a home directory is not.
 
 ```bash
 sudo apt update && sudo apt install -y webhook
 
-# A dedicated, low-privilege user for the service to run as.
-sudo useradd --system --create-home --shell /usr/sbin/nologin deploy
-sudo usermod -aG docker deploy
-
 sudo mkdir -p /opt/webhook
 sudo cp webhook/hooks.json /opt/webhook/hooks.json
 sudo cp webhook/webhook.env.example /opt/webhook/webhook.env
-sudo nano /opt/webhook/webhook.env      # paste in real secrets
 sudo chmod 600 /opt/webhook/webhook.env
-sudo chown -R deploy:deploy /opt/webhook
+sudoedit /opt/webhook/webhook.env    # real secret + CLINICBOOK_REPO_DIR
 
-sudo cp webhook/webhook.service /etc/systemd/system/webhook.service
+sudo cp webhook/webhook.service.example /etc/systemd/system/webhook.service
+sudoedit /etc/systemd/system/webhook.service   # set User=/Group= to that account
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now webhook
-sudo systemctl status webhook
+systemctl status webhook
 ```
 
-Each project also needs its deploy script runnable by the `deploy` user and
-a writable log file:
+The deploy script just needs to be executable - it works out its own location,
+so there is nothing to configure in it:
 
 ```bash
-sudo chown deploy:deploy /opt/apps/ep-2-Delvjn/deploy/redeploy.sh
-sudo chmod +x /opt/apps/ep-2-Delvjn/deploy/redeploy.sh
-sudo touch /var/log/clinicbook-deploy.log
-sudo chown deploy:deploy /var/log/clinicbook-deploy.log
+chmod +x deploy/redeploy.sh
 ```
+
+`redeploy.sh` writes a one-line record per deploy to `<repo>/deploy/deploy.log`
+(gitignored). Point `DEPLOY_LOG` in `webhook.env` somewhere else if you would
+rather it lived outside the checkout; that file must be writable by the
+service account.
 
 ### 2. Configure the webhook in GitHub
 
