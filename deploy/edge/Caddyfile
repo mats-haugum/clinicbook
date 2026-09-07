@@ -9,6 +9,17 @@
 :80 {
 	encode zstd gzip
 
+	# `handle_path /projects/<name>/*` matches the trailing-slash form and
+	# anything below it, but NOT the bare /projects/<name> - that would fall
+	# through to the 404 handler below. Redirect it to the canonical
+	# trailing-slash URL first. This also matters for the SPA itself: with no
+	# trailing slash the browser resolves relative asset URLs against
+	# /projects/ instead of /projects/<name>/. 308 (not 302) so the method and
+	# body of a non-GET request survive the redirect. One regex covers every
+	# project, so new handle_path blocks need nothing added here.
+	@project_root path_regexp proj ^/projects/([^/]+)$
+	redir @project_root /projects/{re.proj.1}/ 308
+
 	# handle_path matches a URL prefix AND strips it before forwarding, so
 	# a request for /projects/clinicbook/api/doctors arrives at clinicbook's
 	# own Caddy container as just /api/doctors - it never needs to know it's
