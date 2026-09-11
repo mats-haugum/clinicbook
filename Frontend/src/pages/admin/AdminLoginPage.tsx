@@ -5,8 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import { extractApiError } from '../../utils/apiError'
 
 export default function AdminLoginPage() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail]       = useState('admin@clinicbook.com')
+  const [password, setPassword] = useState('Admin@123')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
@@ -49,7 +49,16 @@ export default function AdminLoginPage() {
         </div>
 
         <h1 className="text-xl font-bold text-dark mb-1">Admin Sign In</h1>
-        <p className="text-sm text-gray-400 mb-6">Restricted to authorised staff only.</p>
+        <p className="text-sm text-gray-400 mb-4">Restricted to authorised staff only.</p>
+
+        {/* Demo notice — this deployment is a live demo, so the admin credentials are shown openly.
+            Remove this block if the project is ever deployed with real data. */}
+        <div className="mb-6 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <p className="font-semibold mb-1">Live demo</p>
+          {/* <code> keeps the credentials in a monospaced font so they are easy to read and copy */}
+          <p>Email: <code className="font-mono">admin@clinicbook.com</code></p>
+          <p>Password: <code className="font-mono">Admin@123</code></p>
+        </div>
 
         <form onSubmit={e => { e.preventDefault(); handleSubmit() }} className="space-y-4">
           <div>
