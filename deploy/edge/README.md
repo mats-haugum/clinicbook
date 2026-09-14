@@ -58,7 +58,9 @@ polling. Deploys are gated on CI: the hook fires on the `workflow_run` event
 and `hooks.json` only runs `redeploy.sh` when the `CI` workflow completed
 successfully for a push to `main`. The tested commit's hash
 (`workflow_run.head_sha`) is passed to the script, so the server deploys
-exactly what CI tested, never a newer untested commit. One listener (the `webhook` binary by adnanh, packaged for
+exactly what CI tested, never a newer untested commit.
+
+One listener (the `webhook` binary by adnanh, packaged for
 Debian/Ubuntu) serves every project, each at its own URL path
 (`/hooks/<project-id>`), each with its own secret. It runs **on the host**,
 not in a container - see `webhook/webhook.service.example` for why.
@@ -119,12 +121,55 @@ GitHub signs every payload with that secret (`X-Hub-Signature-256`); `webhook`
 verifies it before running anything, so a request without a valid signature
 never touches `redeploy.sh`.
 
+### What a deploy looks like
+
+```
+git push ─► CI runs ─► workflow_run webhook ─► hooks.json rules ─► redeploy.sh <sha>
+```
+
+Every push to `main` produces **three** `workflow_run` deliveries:
+
+| Delivery (`action`) | When | Listener log |
+|---|---|---|
+| `requested` | right after the push | `trigger rules were not satisfied` (expected) |
+| `in_progress` | a few seconds later | `trigger rules were not satisfied` (expected) |
+| `completed` | when CI finishes | CI passed: `hook triggered successfully` → `executing .../redeploy.sh [<sha>]`. CI failed: `trigger rules were not satisfied`, nothing deploys |
+
+On success `deploy/deploy.log` gets a `deployed <short-sha>` line matching the
+pushed commit. `redeploy.sh <sha>` also guards the hash it is given:
+
+- It refuses anything that isn't a 40-character hash, or a commit not on
+  `origin/main`.
+- If two pushes' CI runs finish out of order, the older one logs
+  `skipped <sha> (already deployed or older)` instead of rolling the site back.
+
+### Troubleshooting
+
+- **Watch deliveries arrive:** `journalctl -u webhook -f`. GitHub's side is
+  under Settings → Webhooks → Recent Deliveries, which also has **Redeliver**.
+- **Every delivery is rejected, even after green CI:** check the rule values
+  in `hooks.json` still match reality. The workflow must be named exactly `CI`
+  (`name:` in `.github/workflows/ci.yml`), so renaming it silently stops
+  deploys. The GitHub hook must send **Workflow runs** with Content type
+  `application/json`; a form-encoded body fails every rule while the
+  signature still validates.
+- **Changed `hooks.json` in the repo but nothing changed:** deploys update the
+  repo copy, never the live `/opt/webhook/hooks.json`. Copy it over (see the
+  diff warning below) and `sudo systemctl restart webhook`.
+- **`Hook not found` on every request:** the hooks file failed to load. Check
+  `journalctl -u webhook | grep -E 'loaded|couldn'`.
+
 ### 3. Adding another project's hook
 
 - Add its own `deploy/redeploy.sh` in that project's repo.
 - Add an entry to `webhook/hooks.json` with a new `id`, its script path, and
-  a new `{{ getenv "WEBHOOK_SECRET_..." }}` reference.
+  a new ``{{ getenv `WEBHOOK_SECRET_...` }}`` reference. Use backticks, not
+  `"`: JSON forces `\"` escaping, which Go templates reject, and the whole
+  file then fails to load.
 - Add the matching `WEBHOOK_SECRET_...` line to `/opt/webhook/webhook.env`.
+- Update the live `/opt/webhook/hooks.json`. It is shared by every project, so
+  `diff` it against your copy first and only `sudo cp` if the diff touches
+  nothing but your entry; otherwise `sudoedit` just that entry.
 - `sudo systemctl restart webhook`.
 - Register the new webhook in that project's GitHub repo, pointing at
   `/hooks/<its-id>`.

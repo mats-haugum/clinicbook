@@ -10,7 +10,7 @@
 
 **Live demo: [app.matshaugum.com/projects/clinicbook](https://app.matshaugum.com/projects/clinicbook)** — self-hosted on my own hardware behind a Cloudflare Tunnel. The database resets itself to a clean seeded state every hour, so feel free to book, register, and explore.
 
-ClinicBook is a full-stack appointment booking system for a group of medical clinics. Patients can book as a guest with no account, or register to view, reschedule, and cancel their bookings; an admin panel manages doctors, clinics, specialities, and categories. It started as a school back-end project and grew into a production deployment: integration-tested over real HTTP and SQL Server, containerized, auto-deployed on every push, and served from a home server with **zero open inbound ports**.
+ClinicBook is a full-stack appointment booking system for a group of medical clinics. Patients can book as a guest with no account, or register to view, reschedule, and cancel their bookings; an admin panel manages doctors, clinics, specialities, and categories. It started as a school back-end project and grew into a production deployment: integration-tested over real HTTP and SQL Server, containerized, auto-deployed only once CI passes, and served from a home server with **zero open inbound ports**.
 
 ---
 
@@ -52,7 +52,7 @@ Nothing is ever hard-deleted through the API. Entities implement [`ISoftDeletabl
 No mocks: every test runs the full HTTP pipeline via `WebApplicationFactory` against a real SQL Server, with the test database **wiped and re-migrated before every single test** — which also continuously proves the migration chain applies cleanly from scratch. Dedicated factory subclasses test rate limiting with production limits and output caching without an `Authorization` header (which would silently disable the cache). See [`Backend/ClinicAppointmentBookingSystem.IntegrationTests`](Backend/ClinicAppointmentBookingSystem.IntegrationTests).
 
 ### Self-hosted with zero open inbound ports
-The live demo runs on my own Ubuntu server. A **Cloudflare Tunnel** makes an outbound-only connection to Cloudflare's edge, so the router forwards nothing and the home IP is never in DNS. A shared edge Caddy routes multiple projects by URL path; pushes to GitHub trigger an **HMAC-verified webhook** that pulls and rebuilds the stack; the database gets nightly compressed, checksummed backups and an hourly [`--reset-demo`](Backend/ClinicAppointmentBookingSystem/Data/DemoResetService.cs) that restores the pristine seed state — skipping entirely (dirty-detection) if nobody touched anything.
+The live demo runs on my own Ubuntu server. A **Cloudflare Tunnel** makes an outbound-only connection to Cloudflare's edge, so the router forwards nothing and the home IP is never in DNS. A shared edge Caddy routes multiple projects by URL path; a green CI run on `main` triggers an **HMAC-verified webhook** that rebuilds the stack from exactly the commit CI tested (a push with failing tests never goes live); the database gets nightly compressed, checksummed backups and an hourly [`--reset-demo`](Backend/ClinicAppointmentBookingSystem/Data/DemoResetService.cs) that restores the pristine seed state — skipping entirely (dirty-detection) if nobody touched anything.
 
 ---
 
@@ -112,7 +112,8 @@ flowchart TD
     end
     api --> db
     api --> cache
-    gh[GitHub push] -.HMAC-signed webhook.-> edge
+    gh[GitHub push] --> ci[GitHub Actions CI<br/>build + integration tests]
+    ci -.on success, HMAC-signed webhook.-> edge
 ```
 
 ```
@@ -183,7 +184,7 @@ Full walkthrough: [deploy/how-to-run-locally-for-development.md](deploy/how-to-r
 
 ## Deployment
 
-Production runs as a Docker Compose stack (Caddy + API + SQL Server Express + Redis) behind a shared edge proxy and Cloudflare Tunnel, documented as reproducible runbooks: [deploy/README.md](deploy/README.md) covers the app stack, hardening, backups, and the demo reset; [deploy/edge/README.md](deploy/edge/README.md) covers the shared tunnel, path-based multi-project routing, and webhook auto-deploy. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the full integration suite against MSSQL and Redis service containers on every push; deployment itself is triggered by a signed GitHub webhook, independent of CI.
+Production runs as a Docker Compose stack (Caddy + API + SQL Server Express + Redis) behind a shared edge proxy and Cloudflare Tunnel, documented as reproducible runbooks: [deploy/README.md](deploy/README.md) covers the app stack, hardening, backups, and the demo reset; [deploy/edge/README.md](deploy/edge/README.md) covers the shared tunnel, path-based multi-project routing, and webhook auto-deploy. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the full integration suite against MSSQL and Redis service containers on every push, and deployment is gated on it: when the CI run for a push to `main` succeeds, GitHub sends a signed `workflow_run` webhook and the server deploys that exact commit. A red run deploys nothing.
 
 ---
 

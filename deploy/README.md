@@ -214,13 +214,19 @@ In the dashboard for `matshaugum.com`:
 
 ## Updating
 
+Updates are automatic: push to `main`, and once the CI workflow passes, the
+webhook runs `deploy/redeploy.sh` with the tested commit's hash. A push whose
+tests fail is never deployed. Setup and troubleshooting are in
+[edge/README.md](edge/README.md#webhook-auto-deploy).
+
+To deploy by hand (e.g. while the webhook is down), run the script without an
+argument. It deploys the tip of `origin/main`, **without** waiting for CI:
+
 ```bash
-git pull
-docker compose up -d --build
+deploy/redeploy.sh
 ```
 
-To automate, add a GitHub Actions workflow that SSHes in and runs the above, or
-build images in CI, push to GHCR, and pull them on the server.
+It does a `git reset --hard`, so never edit files in the deploy checkout.
 
 ## Notes and gotchas
 
