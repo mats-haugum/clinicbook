@@ -48,13 +48,17 @@ In the Cloudflare dashboard, the tunnel's Public Hostname should point at:
 2. Add a `handle_path /projects/<name>/*` block to `./Caddyfile` pointing at
    that container name.
 3. `docker compose up -d --build` here to reload Caddy with the new route.
-4. If it should auto-deploy on push, follow the webhook setup below and add
+4. If it should auto-deploy, follow the webhook setup below and add
    its own entry to `webhook/hooks.json`.
 
 ## Webhook auto-deploy
 
-GitHub can notify the server the instant you push, instead of the server
-polling. One listener (the `webhook` binary by adnanh, packaged for
+GitHub can notify the server when a CI run finishes, instead of the server
+polling. Deploys are gated on CI: the hook fires on the `workflow_run` event
+and `hooks.json` only runs `redeploy.sh` when the `CI` workflow completed
+successfully for a push to `main`. The tested commit's hash
+(`workflow_run.head_sha`) is passed to the script, so the server deploys
+exactly what CI tested, never a newer untested commit. One listener (the `webhook` binary by adnanh, packaged for
 Debian/Ubuntu) serves every project, each at its own URL path
 (`/hooks/<project-id>`), each with its own secret. It runs **on the host**,
 not in a container - see `webhook/webhook.service.example` for why.
@@ -108,7 +112,8 @@ Repo → **Settings** → **Webhooks** → **Add webhook**:
 - Payload URL: `https://app.matshaugum.com/hooks/clinicbook`
 - Content type: `application/json`
 - Secret: the same value as `WEBHOOK_SECRET_CLINICBOOK` in `webhook.env`
-- Which events: **Just the push event**
+- Which events: **Let me select individual events** → tick **Workflow runs**
+  only (untick **Pushes**)
 
 GitHub signs every payload with that secret (`X-Hub-Signature-256`); `webhook`
 verifies it before running anything, so a request without a valid signature
