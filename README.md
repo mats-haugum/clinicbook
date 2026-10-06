@@ -8,13 +8,17 @@
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
 ![Tests](https://img.shields.io/badge/integration_tests-141_passing-brightgreen?style=flat)
 
-**Live demo: [app.matshaugum.com/projects/clinicbook](https://app.matshaugum.com/projects/clinicbook)** — self-hosted on my own hardware behind a Cloudflare Tunnel. The database resets itself to a clean seeded state every hour, so feel free to book, register, and explore.
+**Live demo: [app.matshaugum.com/projects/clinicbook](https://app.matshaugum.com/projects/clinicbook)** — self-hosted on my own hardware behind a Cloudflare Tunnel. The database resets itself to a clean seeded state every 24 hours, so feel free to book, register, and explore.
+
+**Project showcase: [matshaugum.com/projects/clinicbook](https://www.matshaugum.com/projects/clinicbook)** — screencasts of the booking flow and the admin panel, screenshots, and diagrams of the refresh-token cycle and the self-hosted infrastructure.
 
 ClinicBook is a full-stack appointment booking system for a group of medical clinics. Patients can book as a guest with no account, or register to view, reschedule, and cancel their bookings; an admin panel manages doctors, clinics, specialities, and categories. It started as a school back-end project and grew into a production deployment: integration-tested over real HTTP and SQL Server, containerized, auto-deployed only once CI passes, and served from a home server with **zero open inbound ports**.
 
 ---
 
 ## Screenshots
+
+For videos of the app in use (guest booking through rescheduling, and the admin panel), see the **[project showcase](https://www.matshaugum.com/projects/clinicbook)**.
 
 <!-- Drop PNGs into docs/screenshots/ with these filenames and they will appear automatically. -->
 
