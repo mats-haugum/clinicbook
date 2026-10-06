@@ -20,3 +20,31 @@ body {
   background: #ffffff;
   -webkit-font-smoothing: antialiased;
 }
+
+/*
+  iOS Safari fix for <input type="date">.
+  Safari on iOS renders date inputs as a native control with a built-in minimum width
+  and height, so they ignore w-full, overflow their grid column, and end up taller than
+  the text inputs. -webkit-touch-callout is only supported on iOS, so this feature query
+  limits the fix to iPhones/iPads and leaves the desktop date pickers untouched.
+  @layer base keeps these rules lower priority than Tailwind utility classes.
+*/
+@layer base {
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"] {
+      /* Remove the native iOS styling so our Tailwind classes take effect */
+      -webkit-appearance: none;
+      appearance: none;
+      /* Allow the input to shrink to its grid column instead of its native minimum width */
+      min-width: 0;
+      /* Same height as the text inputs: 1.5rem line + 2 × 0.5rem padding (py-2) + 2px border */
+      min-height: 2.625rem;
+      background-color: #ffffff;
+    }
+
+    /* The inner element holding the date text — iOS centres it by default */
+    input[type="date"]::-webkit-date-and-time-value {
+      text-align: left;
+    }
+  }
+}
